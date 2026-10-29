@@ -4,7 +4,7 @@
 
 **核心原则：NAS 局域网服务端为主，外出离线学习，回家自动同步。**
 
-> 当前阶段：项目目录与文档基线初始化。V1.7 为设计版本，应用版本尚未发布。仓库尚未包含可运行的 Spring Boot / uni-app 脚手架；下列功能均为规划能力。
+> 当前阶段：设计已到 V1.9，应用尚未发布。仓库还没有可运行的 Spring Boot / uni-app 脚手架。实施顺序见 [开发计划](docs/roadmap.md)，一次只做一个阶段。下列功能仍是规划能力。
 
 ## 产品规划
 
@@ -48,15 +48,14 @@ Android APK 安装在手机或平板上；H5、后端及数据库运行在 NAS�
 
 ## 设计资料
 
-正式基线为 **《果语（Guoyu English）详细设计 V1.7》**，编制部门：产品支持部。原有 Word、PDF、SQL 和 Compose 文件均按原文件归档。
+当前有效详设为 **《果语（Guoyu English）详细设计 V1.9》**（2026-10-23，产品支持部）。第 23 章是唯一持久化模型，第 24 章是唯一接口契约。V1.7、V1.8 只作归档。应用尚未按该文档实现。
 
-- [Word 详细设计 V1.7](docs/design/guoyu-english-detailed-design-v1.7.docx)：可编辑版本，保留高保真原型。
-- [PDF 详细设计 V1.7](docs/design/guoyu-english-detailed-design-v1.7.pdf)：53 页预览版。
-- [PostgreSQL 参考建表脚本](docs/database/guoyu-english-schema-v1.7.sql)。
-- [NAS Docker Compose 参考配置](deploy/examples/guoyu-english-docker-compose-v1.7.example.yml)。
-- [文档索引与文件校验](docs/README.md)。
+- [Word 详细设计 V1.9](docs/设计文档/guoyu-english-detailed-design-v1.9.docx)
+- [V1.9 修订对照与已确认决策](docs/20261023-详细设计V1.9修订对照.md)
+- [开发计划](docs/roadmap.md)：按阶段开 PR 的实施切片。
+- [文档索引](docs/README.md)
 
-SQL 和 Compose 属于设计参考，尚未联调验证。Compose 内的 `YOUR_ORG` / `CHANGE_ME` 为占位值，不能直接作为正式部署配置。SQL 暂不放入自动执行的 Flyway 迁移目录。
+仓库里没有详设 PDF、独立参考 SQL 或 V1.7 Compose 示例文件。正式迁移和 Compose 要到开发计划里的对应阶段才新增，不能把尚未存在的路径当成已交付。
 
 ## 开始参与开发
 
@@ -65,9 +64,9 @@ git clone https://github.com/Millerchu/guoyu-english.git
 cd guoyu-english
 ```
 
-1. 先阅读 V1.7 详设、[开发指南](docs/development.md)和[首版里程碑](docs/roadmap.md)。
+1. 先阅读 [V1.9 详细设计](docs/设计文档/guoyu-english-detailed-design-v1.9.docx) 和 [开发计划](docs/roadmap.md)。开发指南要等本地命令真实存在后再写，目前没有 `docs/development.md`。
 2. 使用 IDEA 打开仓库，后端代码位于 `server/`；客户端可使用 HBuilderX 或兼容 uni-app 的开发环境维护。
-3. 下一步生成服务端 Maven 与客户端 uni-app 工程，确认依赖版本并提交锁定文件，再实现第一个可运行闭环。
+3. 按开发计划从后端脚手架或客户端脚手架做起。一个阶段一个 PR，确认依赖版本并提交锁文件后，再进入动物课学习闭环。
 
 当前没有 `pom.xml`、`package.json` 或正式部署镜像，因此暂不提供启动、构建或一键部署命令。
 
