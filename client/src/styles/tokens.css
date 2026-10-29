@@ -1,0 +1,24 @@
+/*
+ * S02 首页壳用的设计 token。
+ * V1.9 第 19 章只给了「明亮、圆润、糖果色」这些词，没有色值。
+ * 这里的色值是脚手架选定的，不是共享契约的一部分。
+ */
+:root,
+page {
+  --gy-color-canvas: #fff6ee;
+  --gy-color-ink: #3d2c29;
+  --gy-color-muted: #8a6f66;
+  --gy-color-primary: #ff7a45;
+  --gy-color-primary-deep: #e86a34;
+  --gy-color-primary-soft: #ffb067;
+  --gy-color-on-primary: #ffffff;
+  --gy-font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --gy-font-title: 32px;
+  --gy-font-body: 20px;
+  --gy-font-button: 22px;
+  --gy-space-page: 24px;
+  --gy-space-block: 20px;
+  --gy-radius-button: 32px;
+  --gy-button-height: 64px;
+  --gy-shadow-button: 0 8px 0 var(--gy-color-primary-deep);
+}

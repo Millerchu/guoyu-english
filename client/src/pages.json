@@ -1,0 +1,16 @@
+{
+	"pages": [
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "果语"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "果语",
+		"navigationBarBackgroundColor": "#FFF6EE",
+		"backgroundColor": "#FFF6EE"
+	}
+}
