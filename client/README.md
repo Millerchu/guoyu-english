@@ -3,47 +3,49 @@
 uni-app（Vue 3 + TypeScript + Pinia）单套代码，同时输出 **Android APK** 与 **H5**。
 儿童端与家长端页面都在这一套工程里，不拆两个仓库。
 
-> **当前状态：空目录。** 没有 `package.json`、没有 `pages.json`、没有 `manifest.json`。
-> 下面描述的是依据《详细设计 V1.7》第 9、20、25 章确定的**目标结构**，不是已实现的东西。
-> 在脚手架落地前，本文件不作为可执行指南。
+当前是 S02 脚手架。H5 可以安装依赖、做类型检查并构建。首页只有一层壳。学习页、IndexedDB 和真实 HTTP 都还没有。Android 应用 ID 已预留，APK 和真机都还没做。
 
 ## 技术基线
 
 | 项 | 选型 | 说明 |
 | --- | --- | --- |
-| 框架 | uni-app（Vue 3 语法） | 一套代码双端输出 |
+| 框架 | uni-app（Vue 3 语法） | 官方 `dcloudio/uni-preset-vue#vite-ts`。npm 包 `3.0.0-5020620260917001`，构建日志为 Compiler version 5.26（vue3） |
 | 语言 | TypeScript | 不允许在业务代码里写 `any` 兜底 |
-| 状态 | Pinia | 学习进度、同步状态、儿童档案 |
-| UI | 主题化自定义儿童组件 | 不直接套 Vant 默认皮肤，儿童端按钮要重做 |
-| Android 最低版本 | Android 8.0（API 26） | 见详设 20.7 |
-| 应用 ID | `com.guoyu.english` | 首次打包前固定，之后不要改 |
+| 状态 | Pinia `2.1.7` | 已在 `src/main.ts` 接入。学习进度、同步状态、儿童档案的 store 还没有 |
+| UI | 主题化自定义儿童组件 | 不直接套 Vant 默认皮肤。本阶段只有首页按钮和 `src/styles/tokens.css` |
+| Node | `^18.0.0 \|\| >=20.0.0` | 与脚手架锁定的 Vite `5.2.8` 的 `engines` 相同 |
+| 包管理 | npm | 锁文件是 `package-lock.json` |
+| Android 最低版本 | Android 8.0（API 26） | `src/manifest.json` 已写 `minSdkVersion` 26。还没有 APK |
+| 应用 ID | `com.guoyu.english` | 已写入 `src/manifest.json` 的 Android `packagename` |
 
-## 规划目录结构
+## 当前目录
+
+官方 CLI 把页面和配置放在 `src/`。不要再把 `pages.json`、`manifest.json` 挪到 `client/` 根目录。
 
 ```
 client/
 ├── src/
-│   ├── pages/                 # 页面（tabBar 5 项 + 学习流程页 + 家长页）
-│   ├── components/            # 儿童端通用组件：大按钮、圆角卡片、星星、小兔老师
-│   ├── stores/                # Pinia：child / learning / sync / reward
-│   ├── repositories/          # 数据访问接口层（双端差异都收敛在这里）
-│   │   ├── types.ts           # Repository 接口定义
-│   │   ├── android/           # SQLite + App 私有文件
-│   │   └── h5/                # IndexedDB + Cache Storage
-│   ├── sync/                  # outbox、push/pull、资源包校验、重试退避
-│   ├── api/                   # /api/v1 请求封装、统一响应解包
-│   ├── media/                 # 音频播放、录音（Android 原生 / H5 getUserMedia）
-│   ├── styles/                # 品牌色、字号、圆角、间距 token
-│   └── utils/
-├── pages.json
-├── manifest.json
+│   ├── pages/index/index.vue  # 首页壳，本阶段唯一页面
+│   ├── repositories/          # 方法签名；调用会拒绝
+│   ├── styles/tokens.css      # 字号、间距、圆角、主按钮高度
+│   ├── pages.json             # 只注册首页，没有 tabBar
+│   ├── manifest.json          # 应用名「果语」，Android 应用 ID
+│   ├── App.vue
+│   └── main.ts                # Pinia
 ├── package.json
+├── package-lock.json
 └── tsconfig.json
 ```
 
-## 建议页面路由
+这些目录还没有，留给后续阶段：`src/pages/learn/`、`src/components/`、`src/stores/`、`src/repositories/h5/`、`src/repositories/android/`、`src/sync/`、`src/api/`、`src/media/`。
 
-对应详设第 7 章的 13 张高保真原型。tabBar 只放前 5 项，家长入口走长按/PIN 进入。
+## 页面路由
+
+共享契约已经点名 `pages/index/index`、`pages/learn/listen`、`pages/learn/speak`、`pages/learn/recognize`、`pages/learn/complete`。读一句 `pages/learn/read` 到 S12 再做。本阶段只注册首页。
+
+tabBar、游戏入口仍有评审分歧，共享契约没有登记 tabBar。本阶段不放 tabBar，也不把下表其余行当成已经实现的页面。
+
+下表仍是详设第 7 章的页面清单，供后续阶段对照。
 
 | 路由 | 页面 | 对应原型 |
 | --- | --- | --- |
@@ -78,7 +80,9 @@ client/
 
 ## 端侧同步职责
 
-客户端不是权威数据源，只做三件事：
+客户端不是权威数据源。仓储接口在 `src/repositories/`，五个方法现在都会拒绝，不会返回空列表或空课程。失败反馈的 `saved` 固定为 `false`，文案不是「已保存」。页面不要直接打开 IndexedDB，也不要直接发 HTTP。
+
+落地之后，客户端只做三件事：
 
 1. **本地先写**：学习动作 → 同事务写本地状态 + outbox（不可拆，拆了就会丢记录）。
 2. **Push**：批量上报，单批上限 100 条 / 256KB。每条按 `eventId` 独立返回 `ACCEPTED` / `DUPLICATE` / `REJECTED`。
@@ -96,17 +100,22 @@ client/
 - 学习任务中返回要保留进度，不清空已完成步骤。
 - 儿童端不展示服务器 IP、同步日志、管理按钮。
 
-## 开发环境
+## 本地运行
 
-脚手架落地后预期命令（**当前不可执行**）：
+在 `client/` 目录执行。Node 需满足 `package.json` 的 `engines.node`，即 `^18.0.0 || >=20.0.0`。
 
 ```bash
 cd client
 npm install
-npm run dev:h5        # H5 调试
-npm run build:h5      # 产物给 deploy/ 的 Nginx 容器
-npm run dev:app       # HBuilderX 或 CLI 跑 Android 真机
+npm run type-check
+npm run check:repository
+npm run dev:h5
+npm run build:h5
 ```
+
+`dev:h5` 启动开发服务器。`build:h5` 的页面在 `dist/build/h5/`。
+
+没有 `dev:app` 脚本。Android 打包仍要 HBuilderX，本阶段没有 APK，也没有真机结果。
 
 ## 禁止提交
 
