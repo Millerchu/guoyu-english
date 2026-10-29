@@ -4,11 +4,11 @@
 
 ## 现状与架构
 
-- 指南建立时只有 README，没有 `pom.xml`、Maven Wrapper、Java 源码或迁移脚本。不要宣称已能启动或测试。
-- 设计基线为 Java 17、Spring Boot 3.x、PostgreSQL 16+、Flyway，模块化单体；根包 `com.guoyu.english`，Maven groupId 规划为 `com.guoyu`。
-- ORM 尚未落地，当前倾向 MyBatis-Plus，也可按已确认方案选择 Spring Data JPA；初始化时明确一种主方案，避免混用。
-- 按业务能力组织 `auth / child / course / learning / book / phonics / game / reward / calendar / report / content / sync / media / speech / common`。这是逻辑包规划，不是要求创建 15 个 Maven 子工程。
-- 每个模块按实际复杂度划分 `controller / application / domain / infrastructure`；不为凑层数新增空类、无意义接口或重复转发。
+- S01 已提供 `pom.xml`、Maven Wrapper、`common` 统一响应与健康检查、`src/main/resources/db/migration/V1__baseline.sql`。V1 不建业务表。课程、身份、同步等包还没有。`./mvnw test` 依赖 Docker 中的 `postgres:16`，通过不等于家庭 NAS 已验收。
+- 设计基线为 Java 17、Spring Boot 3.5.16、PostgreSQL 16+、Flyway，模块化单体；根包 `com.guoyu.english`，Maven groupId 为 `com.guoyu`。编译目标保持 17。
+- ORM 锁定 MyBatis-Plus 3.5.18，不引入 Spring Data JPA。
+- 按业务能力组织 `auth / child / course / learning / book / phonics / game / reward / calendar / report / content / sync / media / speech / common`。这是逻辑包规划，不是要求创建 15 个 Maven 子工程。目前只有 `common`。
+- 每个模块按实际复杂度划分 `controller / application / domain / infrastructure`；不为凑层数新增空类、无意义接口或重复转发。健康检查只有控制器和数据对象。
 
 ## Java 与职责边界
 
@@ -21,7 +21,7 @@
 
 ## 接口与鉴权
 
-- 规划 API 前缀 `/api/v1`，JSON UTF-8，统一响应字段 `requestId / code / message / data / serverTime`；落地时同步确定时间格式、空值、HTTP 状态与业务码。
+- API 前缀 `/api/v1`，JSON UTF-8。统一响应字段 `requestId / code / message / data / serverTime`。`serverTime` 为 UTC ISO-8601，以 `Z` 结尾。五个字段始终输出，`data` 可以为 null。业务码见 `ApiCode`。HTTP 状态：`OK` 200、`INVALID_ARGUMENT` 400、`DEVICE_REVOKED` 401、`EVENT_CONFLICT` 与 `EVENT_ID_REUSED` 409、`INTERNAL_ERROR` 500。详设把 `DEVICE_REVOKED` 写成 401/403，脚手架取 401。
 - 学习动作涉及在线接口和 `/sync/push` 时，复用同一业务处理与幂等边界；不得为不同入口建立互相独立的奖励路径。
 - 客户端传来的 `childId`、deviceId 等不能作为授权依据；服务端验证设备状态、绑定关系和数据归属，读取与写入都检查越权。
 - 设备令牌支持撤销；家长 PIN 需要安全哈希、尝试次数限制与延迟等措施，不能因“已哈希”就声称短 PIN 是强密码。
