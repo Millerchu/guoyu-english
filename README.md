@@ -66,7 +66,7 @@ cd guoyu-english
 
 1. 先阅读 [V1.9 详细设计](docs/设计文档/guoyu-english-detailed-design-v1.9.docx) 和 [开发计划](docs/roadmap.md)。开发指南要等本地命令真实存在后再写，目前没有 `docs/development.md`。
 2. 使用 IDEA 打开仓库，后端代码位于 `server/`；客户端可使用 HBuilderX 或兼容 uni-app 的开发环境维护。
-3. 按开发计划从后端脚手架或客户端脚手架做起。一个阶段一个 PR，确认依赖版本并提交锁文件后，再进入水果课学习闭环。
+3. 按开发计划从后端脚手架或客户端脚手架做起。一个阶段一个 PR，确认依赖版本并提交锁文件后，再进入动物课学习闭环。
 
 当前没有 `pom.xml`、`package.json` 或正式部署镜像，因此暂不提供启动、构建或一键部署命令。
 
