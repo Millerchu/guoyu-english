@@ -3,8 +3,8 @@
 家庭 NAS 上的 Docker Compose 编排、Nginx 反向代理、环境变量模板与备份脚本。
 
 > **当前状态：空目录。** 没有 `docker-compose.yml`，没有 `.env.example`，没有 `nginx/`。
-> 根 README 引用的 `deploy/examples/guoyu-english-docker-compose-v1.7.example.yml` **并不存在**。
-> 下面为依据《详细设计 V1.7》第 13、26.4 章确定的**目标拓扑**。
+> 根 README 不再链接不存在的 `deploy/examples/` 示例文件。正式 Compose 按 [开发计划](../docs/roadmap.md) 的 S03 再添加。
+> 下面为依据《详细设计 V1.9》第 13、26.4 章确定的**目标拓扑**，不是已可运行的配置。
 
 ## 容器拓扑
 
@@ -50,7 +50,7 @@ TLS 反代（NAS 自带反代或 Caddy/Nginx）是**推荐项而非可选项**�
 | `SPRING_PROFILES_ACTIVE` | 是 | `prod` |
 | `TZ` | 建议 | `Asia/Shanghai`，影响日志与聚合任务 |
 
-根 README 提到的 `YOUR_ORG` / `CHANGE_ME` 是示例文件里的占位符。看到这两个字符串原样出现在正式配置里，说明没改，不能上线。
+以后的 `.env.example` 只放 `CHANGE_ME` 这类可识别占位符。占位符原样出现在正式配置里，说明没改，不能上线。
 
 ## 首次部署步骤（拓扑确定后）
 
@@ -89,4 +89,5 @@ TLS 反代（NAS 自带反代或 Caddy/Nginx）是**推荐项而非可选项**�
 - `.env.example`
 - `nginx/conf.d/guoyu-english.conf`（H5 静态资源 + `/api` 反代 + `/media` 静态）
 - `backup/` 定时备份脚本
-- `examples/guoyu-english-docker-compose-v1.7.example.yml`（根 README 已引用，需补齐或删除该链接）
+
+这些文件按 [开发计划](../docs/roadmap.md) 的 S03、S21 添加。根 README 已不再链接不存在的 V1.7 Compose 示例。

@@ -4,6 +4,8 @@
 
 ## 现有文件
 
+- [开发计划](roadmap.md)（2026-10-29）：把 V1.9 和第一个水果课闭环拆成可单独验收的阶段。这是实施切片，不是已完成的功能清单。
+
 2026-10-23 补充：已依据 V1.8 评审和本次用户确认生成 **V1.9 详细设计**。D01–D12 业务选择已确认；设计细节、建议参数及验收场景仍须实施验证，不表示应用已发布。原 V1.7/V1.8 保留归档。
 
 - [V1.9 详细设计](设计文档/guoyu-english-detailed-design-v1.9.docx)
@@ -18,11 +20,12 @@
 
 V1.8 另已补充 **21.5 ChinaTextbookStudyFree 专项参考与适配**：按固定提交核查可参考的内容工具链、逐句听读、复习、资源校验与测试方法，区分 MIT 代码和教材素材权利；新增计划用例 T23–T26。具体来源与采用边界见修订对照，不表示已集成该项目或已通过应用验收。
 
-下表及后续元信息描述原 V1.7 归档资料；后续实现参考 V1.9 及本次已确认的决策，原版仅用于历史对照。
+后续实现以 V1.9 和 [开发计划](roadmap.md) 为准。下表保留 V1.7 归档条目；紧随其后的元信息表描述的是 V1.7 原件，不是当前有效版本。
 
 | 文件 | 大小 | 说明 |
 | --- | --- | --- |
-| [设计文档/guoyu-english-detailed-design-v1.7.docx](设计文档/guoyu-english-detailed-design-v1.7.docx) | 约 20 MB | **正式设计基线**。28 章 + 2 附录，含 13 张高保真原型图 |
+| [设计文档/guoyu-english-detailed-design-v1.9.docx](设计文档/guoyu-english-detailed-design-v1.9.docx) | 详设原文 | **当前有效详设**。28 章 + 2 附录 |
+| [设计文档/guoyu-english-detailed-design-v1.7.docx](设计文档/guoyu-english-detailed-design-v1.7.docx) | 约 20 MB | 归档。28 章 + 2 附录，含 13 张高保真原型图 |
 
 设计文档元信息：
 
@@ -36,20 +39,11 @@ V1.8 另已补充 **21.5 ChinaTextbookStudyFree 专项参考与适配**：按固
 
 因为含高保真图，文件体积 20 MB，Git 里改这个文件会让仓库膨胀。后续正文变更建议改为 Markdown 维护，docx 只在定版时归档。
 
-## 路径不一致——需要处理
+## 根 README 链接
 
-根 `README.md` 的「设计资料」一节引用了 6 个路径，**其中 5 个当前不存在，1 个路径写错**：
+根 `README.md` 现在只指向仓库里真实存在的 V1.9 原文、修订对照、[开发计划](roadmap.md) 和本索引。原先引用的 PDF、`docs/database/` 参考 SQL、`docs/development.md` 和 `deploy/examples/` Compose 示例都还没有文件，因此不再放链接。
 
-| 根 README 引用 | 实际状态 |
-| --- | --- |
-| `docs/design/guoyu-english-detailed-design-v1.7.docx` | 路径错误，实际在 `docs/设计文档/` 下 |
-| `docs/design/guoyu-english-detailed-design-v1.7.pdf` | 不存在（README 称 53 页预览版） |
-| `docs/database/guoyu-english-schema-v1.7.sql` | 不存在（详设 23.3 称附有 18+ 张表的参考脚本） |
-| `docs/development.md` | 不存在 |
-| `docs/roadmap.md` | 不存在 |
-| `deploy/examples/guoyu-english-docker-compose-v1.7.example.yml` | 不存在 |
-
-两条路选一条：把文件补齐到 README 描述的位置，或者把 README 改成反映真实结构。**别放着不管**——新加入的人点进去全是 404。
+`docs/development.md` 按开发计划在本地 Compose 真实可运行时再写。参考 SQL 若以后整理，也不能直接放进 Flyway 目录。
 
 ## 规划文档结构
 
@@ -58,18 +52,14 @@ V1.8 另已补充 **21.5 ChinaTextbookStudyFree 专项参考与适配**：按固
 ```
 docs/
 ├── README.md                      # 本文件
-├── design/                        # 设计文档
-│   ├── guoyu-english-detailed-design-v1.7.docx
-│   └── guoyu-english-detailed-design-v1.7.pdf
-├── database/
-│   └── guoyu-english-schema-v1.7.sql   # 参考建表脚本，未联调
+├── roadmap.md                     # 已有：分阶段实施计划
+├── 设计文档/                      # 已有：V1.7–V1.9 原文，当前以 V1.9 为准
 ├── api/
-│   └── api-v1.md                  # /api/v1 接口说明 + 错误码
-├── development.md                 # 本地开发环境、分支、提交规范
-├── roadmap.md                     # M0–M4 里程碑与验收门槛
+│   └── api-v1.md                  # 待补：只记录已经实现的接口
+├── development.md                 # 待补：本地命令真实存在后再写
 ├── testing/
-│   └── test-matrix.md             # T01–T12 用例
-└── THIRD_PARTY_NOTICES.md         # 第三方依赖与素材授权登记
+│   └── test-matrix.md             # 待补：T01–T37 的实测记录，不是计划本身
+└── THIRD_PARTY_NOTICES.md         # 待补：引入依赖或素材时登记
 ```
 
 ## 各文档要点（避免重复造轮子）
