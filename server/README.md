@@ -1,26 +1,27 @@
 # server/ — 后端服务
 
-Java 17 + Spring Boot 3.x，**模块化单体**。给一个家用 NAS 装微服务是过度设计，Nacos / Redis / MQ / Seata 一律不引入。
+Java 17 + Spring Boot 3.5.16，**模块化单体**。给一个家用 NAS 装微服务是过度设计，Nacos / Redis / MQ / Seata 一律不引入。
 
-> **当前状态：空目录。** 没有 `pom.xml`、没有 `src/`、没有一行 Java。
-> 以下为依据《详细设计 V1.7》第 9.2、23、24、26 章确定的**目标结构**，不是已实现内容。
-> 当前不存在可运行的启动命令。
+S01 已落地可编译的骨架：Maven Wrapper、统一响应、`GET /api/v1/system/health`、Flyway `V1__baseline.sql`。V1 只执行 `SELECT 1`，不建业务表。课程、身份、同步等包还没有。集成测试用 Docker 里的 `postgres:16`。家庭 NAS 尚未验收。
+
+下面的模块划分和接口目录，除健康检查外，仍是后续阶段的目标，不是本目录已经实现的接口。
 
 ## 技术基线
 
 | 项 | 选型 |
 | --- | --- |
-| JDK | Java 17 |
-| 框架 | Spring Boot 3.x |
+| JDK | Java 17，编译目标 17 |
+| 框架 | Spring Boot 3.5.16（2026-10-29 时 Maven Central 的 3.x 最新正式版） |
+| Maven | Wrapper，发行版 3.9.16 |
 | Maven groupId / 根包 | `com.guoyu` / `com.guoyu.english` |
 | ArtifactId | `guoyu-english-server` |
-| ORM | MyBatis-Plus（MVP 首选）或 Spring Data JPA，二选一，别混 |
-| 数据库 | PostgreSQL 16+ |
-| 迁移 | Flyway，脚本放 `src/main/resources/db/migration` |
+| ORM | MyBatis-Plus 3.5.18。不引入 Spring Data JPA |
+| 数据库 | PostgreSQL 16+。集成测试镜像 `postgres:16` |
+| 迁移 | Flyway，脚本放 `src/main/resources/db/migration`。当前只有 `V1__baseline.sql` |
 
 ## 模块划分
 
-每个模块内部统一四层：`controller / application / domain / infrastructure`。
+每个模块内部统一四层：`controller / application / domain / infrastructure`。MyBatis-Plus 会扫描 `com.guoyu.english` 下带 `@Mapper` 的接口。当前没有 Mapper，启动日志里的 `No MyBatis mapper was found` 是预期现象。
 
 ```
 com.guoyu.english
@@ -43,7 +44,34 @@ com.guoyu.english
 
 ## 接口目录
 
-统一前缀 `/api/v1`，JSON UTF-8。响应体固定 `requestId / code / message / data / serverTime`。
+统一前缀 `/api/v1`，JSON UTF-8。响应体固定五个字段：`requestId`、`code`、`message`、`data`、`serverTime`。`serverTime` 为 UTC ISO-8601，以 `Z` 结尾。`requestId` 取请求头 `X-Request-Id`；缺失、空白，或去掉控制字符后为空时，服务端生成 UUID。传入值会去掉回车换行等控制字符，并截断到 128 个字符。响应头也会回传同一个 `X-Request-Id`。
+
+业务码枚举在 `com.guoyu.english.common.api.ApiCode`，名称固定为 `OK`、`INVALID_ARGUMENT`、`DEVICE_REVOKED`、`EVENT_CONFLICT`、`EVENT_ID_REUSED`、`INTERNAL_ERROR`。本阶段成功响应使用 `OK`。HTTP 对照沿用详设第 24.4 节已列出的关系：`OK` 200、`INVALID_ARGUMENT` 400、`EVENT_CONFLICT` 与 `EVENT_ID_REUSED` 409、`INTERNAL_ERROR` 500。`DEVICE_REVOKED` 在详设里写成 401/403，这里的响应使用 401。
+
+健康检查的 `data` 以开发计划共享契约为准，只有 `status=UP` 和构建版本 `version`（取 POM 版本）。详设 24.2 还写了 `ready`，本阶段没有另加字段，也没有改共享契约。
+
+已实现：
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/v1/system/health` | 无需令牌。`data` 只有 `status` 与 `version`。不返回口令、地址、令牌或 `MEDIA_ROOT` |
+
+示例：
+
+```json
+{
+  "requestId": "11111111-2222-4333-8444-555555555555",
+  "code": "OK",
+  "message": "OK",
+  "data": {
+    "status": "UP",
+    "version": "0.0.1-SNAPSHOT"
+  },
+  "serverTime": "2026-10-29T14:47:00.123Z"
+}
+```
+
+下面其余路径仍是目标目录，还没有控制器。
 
 ### 业务接口
 
@@ -72,7 +100,7 @@ com.guoyu.english
 | POST | `/sync/push` | 批量上报，逐条 `eventId` 幂等 |
 | GET | `/sync/pull?cursor=N&limit=100` | 增量快照 + nextCursor |
 | GET | `/sync/status` | 上次同步时间、待同步数 |
-| GET | `/system/health` | NAS 可达性与版本（仅非敏感信息） |
+| GET | `/system/health` | 已实现，见上一节。进程存活与构建版本，不探测 NAS |
 
 ## 幂等与事务——这块做错整个项目就废了
 
@@ -126,11 +154,33 @@ com.guoyu.english
 - 上传走 MIME 白名单 + 大小限制 + 路径规范化，防目录穿越；媒体目录默认只读。
 - Flyway 只向前迁移。升级前备份 PG + 媒体目录。
 
-## 启动（脚手架落地后）
+## 启动与测试
+
+在 `server/` 下执行。需要 JDK 17。`./mvnw test` 还需要本机 Docker，由 Testcontainers 启动 `postgres:16`。
 
 ```bash
 cd server
-./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+./mvnw test
 ```
 
-**现在跑不了**，`pom.xml` 还没生成。
+交互启动需要一套可连接的 PostgreSQL。口令和地址只放在环境变量里，不写入仓库：
+
+```bash
+cd server
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_NAME=guoyu_english
+export DB_USER=guoyu
+export DB_PASSWORD=CHANGE_ME
+export MEDIA_ROOT=/data/media
+export SPRING_PROFILES_ACTIVE=local
+./mvnw spring-boot:run
+```
+
+目前没有单独的 `application-local.yml`。未设置 `DB_PASSWORD` 时口令为空，数据库拒绝连接则进程起不来。健康检查不回传这些配置。
+
+```bash
+curl -sS http://127.0.0.1:8080/api/v1/system/health
+```
+
+Compose、镜像和家庭 NAS 不在本阶段。

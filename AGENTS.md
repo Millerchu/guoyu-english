@@ -17,10 +17,10 @@
 ## 项目事实与设计边界
 
 - 项目为儿童家庭英语启蒙系统，采用单 Git 仓库管理前后端。主线是家庭 NAS 局域网服务、外出离线学习、重新连接后同步。
-- 本指南建立时（2026-10-22），仓库仅有设计与目录说明；尚无 `server/pom.xml`、`client/package.json`、正式 Compose、迁移 SQL 或可运行应用。后续工作先核对现状，脚手架落地后同步更新指南，不能永久沿用这一状态描述。
+- 本指南建立时（2026-10-22），仓库仅有设计与目录说明。S01 已落地 `server/pom.xml`、Maven Wrapper、健康检查和 `V1__baseline.sql`；`client/package.json`、正式 Compose 与可发布应用仍未落地。后续阶段先核对现状，再更新本段。
 - 当前设计选型：uni-app + Vue 3 + TypeScript；Java 17 + Spring Boot 3.x 模块化单体；PostgreSQL 16+；Flyway；Docker Compose。具体依赖与工具版本须在脚手架中锁定，不能从其他项目照搬 Java 8、JDK 21、Node 22 或其他版本要求。
 - 不主动引入微服务拆分、Nacos、Seata、Redis、消息队列等额外基础设施；新增依赖先判断现有单体和数据库是否足够。
-- 正式设计文件实际位于 [docs/设计文档/guoyu-english-detailed-design-v1.7.docx](docs/设计文档/guoyu-english-detailed-design-v1.7.docx)。V1.7 是设计版本，不代表应用已经发布。
+- 正式设计文件实际位于 [docs/设计文档/guoyu-english-detailed-design-v1.9.docx](docs/设计文档/guoyu-english-detailed-design-v1.9.docx)。V1.9 是当前设计版本，不代表应用已经发布。V1.7 与 V1.8 只作归档。
 - 根 README 中部分 PDF、SQL、Compose、开发指南链接当前无对应文件；以文件实际存在情况为准，不能据链接宣称已经交付。
 - [docs/design-review-v1.7.md](docs/design-review-v1.7.md) 是评审意见，不等于已批准的新基线。API、数据模型、奖励粒度、离线奖励表现、学习日时区等冲突，涉及当前任务时先说明并统一契约，再修改相关实现与文档；不以“后章节优先”等猜测代替决策，也不阻断无关工作。
 
