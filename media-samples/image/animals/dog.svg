@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Original geometric illustration for animals-001. No third-party artwork. No word labels. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img">
+  <rect width="240" height="240" rx="36" fill="#E7F6FB"/>
+  <ellipse cx="120" cy="176" rx="62" ry="36" fill="#E9C46A"/>
+  <ellipse cx="74" cy="118" rx="22" ry="40" fill="#C9842A"/>
+  <ellipse cx="166" cy="118" rx="22" ry="40" fill="#C9842A"/>
+  <circle cx="120" cy="112" r="50" fill="#E9C46A"/>
+  <ellipse cx="120" cy="128" rx="26" ry="20" fill="#F6E7B4"/>
+  <circle cx="102" cy="104" r="7" fill="#264653"/>
+  <circle cx="138" cy="104" r="7" fill="#264653"/>
+  <circle cx="104" cy="102" r="2" fill="#FFFFFF"/>
+  <circle cx="140" cy="102" r="2" fill="#FFFFFF"/>
+  <ellipse cx="120" cy="128" rx="8" ry="6" fill="#264653"/>
+  <path d="M120 134 Q126 146 118 150 Q112 142 120 134" fill="#E76F51"/>
+  <path d="M92 168 Q120 150 148 168" fill="none" stroke="#2A9D8F" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="148" cy="168" r="5" fill="#E76F51"/>
+</svg>

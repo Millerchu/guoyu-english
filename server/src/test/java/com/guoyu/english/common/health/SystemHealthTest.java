@@ -5,7 +5,9 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -34,7 +36,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 在 postgres:16 上验收 Flyway V1 和健康检查。
+ * 在 postgres:16 上验收 Flyway 与健康检查。V2 起有课程表，健康检查本身不返回这些表。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
@@ -64,7 +66,7 @@ class SystemHealthTest {
     }
 
     @Test
-    void flywayAppliesV1OnPostgres16WithoutBusinessTables() throws Exception {
+    void flywayAppliesV1AndV2OnPostgres16() throws Exception {
         assertThat(POSTGRES.getDockerImageName()).contains("postgres:16");
         assertThat(sqlSessionFactory).isNotNull();
         try (Connection connection = dataSource.getConnection();
@@ -75,11 +77,15 @@ class SystemHealthTest {
             }
             try (ResultSet history = statement.executeQuery(
                     "SELECT version, script, success FROM flyway_schema_history ORDER BY installed_rank")) {
-                assertThat(history.next()).isTrue();
-                assertThat(history.getString("version")).isEqualTo("1");
-                assertThat(history.getString("script")).isEqualTo("V1__baseline.sql");
-                assertThat(history.getBoolean("success")).isTrue();
-                assertThat(history.next()).isFalse();
+                List<String> versions = new ArrayList<>();
+                List<String> scripts = new ArrayList<>();
+                while (history.next()) {
+                    versions.add(history.getString("version"));
+                    scripts.add(history.getString("script"));
+                    assertThat(history.getBoolean("success")).isTrue();
+                }
+                assertThat(versions).containsExactly("1", "2");
+                assertThat(scripts).containsExactly("V1__baseline.sql", "V2__course_media.sql");
             }
             try (ResultSet tables = statement.executeQuery(
                     "SELECT table_name FROM information_schema.tables "
@@ -89,7 +95,25 @@ class SystemHealthTest {
                 while (tables.next()) {
                     names.add(tables.getString("table_name"));
                 }
-                assertThat(names).containsExactly("flyway_schema_history");
+                assertThat(names).containsExactlyInAnyOrder(
+                        "flyway_schema_history",
+                        "course_theme",
+                        "media_asset",
+                        "lexeme",
+                        "lesson",
+                        "lesson_step",
+                        "lesson_lexeme",
+                        "lesson_sentence",
+                        "lesson_step_sentence",
+                        "lesson_question",
+                        "lesson_option",
+                        "lesson_question_option");
+                assertThat(names).doesNotContain(
+                        "child_profile",
+                        "client_device",
+                        "learning_event",
+                        "star_ledger",
+                        "daily_assignment");
             }
         }
     }
