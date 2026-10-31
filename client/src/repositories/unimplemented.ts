@@ -41,5 +41,3 @@ export function createUnimplementedLearningRepository(): LearningRepository {
     },
   };
 }
-
-export const learningRepository: LearningRepository = createUnimplementedLearningRepository();

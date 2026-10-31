@@ -8,9 +8,9 @@
 - 包管理器是 npm，锁文件是 `package-lock.json`。`engines.node` 写成脚手架锁定的 Vite 5.2.8 所要求的 `^18.0.0 || >=20.0.0`。
 - Pinia 按 [uni-app Vue3 Pinia 说明](https://uniapp.dcloud.net.cn/tutorial/vue3-pinia.html) 接入，版本固定为文档中的内置版本 `2.1.7`，并在 `createApp` 里返回 `Pinia`。npm 上更新的 Pinia 要求 Vue 3.5，和本脚手架的 Vue 3.4 不一致。
 - 已有首页壳 `src/pages/index/index` 和 `src/styles/tokens.css`。`src/pages.json` 只注册这一页，没有 tabBar。
-- `src/repositories/` 只有共享契约里的方法签名。调用会拒绝，失败反馈的 `saved` 固定为 `false`。S09 再实现持久化。不要用空列表或空课程表示已经保存。
-- Android 应用 ID 已写为 `com.guoyu.english`，`minSdkVersion` 为 26。本阶段没有 APK，也没有真机结果。
-- 下面表格里还没出现的目录，使用前先确认是否已经创建。学习页、组件、存储实现、同步和 HTTP 都不在本阶段。
+- `src/repositories/` 已实现共享契约里的五个方法。H5 使用 IndexedDB，Android 使用同一接口的 SQLite。失败反馈的 `saved` 固定为 `false`。不要用空列表或空课程表示已经保存。读失败必须拒绝，不能返回空队列。
+- Android 应用 ID 已写为 `com.guoyu.english`，`minSdkVersion` 为 26。SQLite 适配没有 APK，也没有真机结果。`ANDROID_SQLITE_DEVICE_VERIFIED` 保持 `false`。
+- 学习页、儿童组件和录音适配还没有。存储、outbox 和同步 HTTP 已在 `src/repositories/`、`src/sync/`、`src/api/`。
 
 | 目标路径 | 职责 |
 | --- | --- |
@@ -54,7 +54,7 @@
 
 ## 验证与交付
 
-- 类型检查用 `npm run type-check`，H5 构建用 `npm run build:h5`，仓储失败行为用 `npm run check:repository`。没有 `dev:app` 脚本；Android 打包和真机不要写成已经通过。
+- 类型检查用 `npm run type-check`，H5 构建用 `npm run build:h5`，未实现仓储的失败语义用 `npm run check:repository`，本地事务和 outbox 用 `npm run check:storage`。没有 `dev:app` 脚本；Android 打包和真机不要写成已经通过。
 - 同步改动覆盖重复 ACK、部分失败、Pull 中断、切换儿童、设备撤销、包校验失败以及旧包保留。
 - 双端修改分别核对 Android 与 H5；有界面改动检查实际受影响尺寸和状态，必要时保留截图，不用模拟结果冒充真机。
 - 离线场景验证：NAS 不可达时完成学习、应用重启后记录仍在、恢复网络后上传并回显正确且不重复发奖。
