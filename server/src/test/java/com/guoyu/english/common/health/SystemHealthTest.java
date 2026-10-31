@@ -1,5 +1,7 @@
 package com.guoyu.english.common.health;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -64,9 +66,11 @@ class SystemHealthTest {
     }
 
     @Test
-    void flywayAppliesV1OnPostgres16WithoutBusinessTables() throws Exception {
+    void flywayAppliesV1OnPostgres16() throws Exception {
         assertThat(POSTGRES.getDockerImageName()).contains("postgres:16");
         assertThat(sqlSessionFactory).isNotNull();
+        String baseline = Files.readString(Path.of("src/main/resources/db/migration/V1__baseline.sql"));
+        assertThat(baseline.toLowerCase()).doesNotContain("create table");
         try (Connection connection = dataSource.getConnection();
                 Statement statement = connection.createStatement()) {
             try (ResultSet version = statement.executeQuery("SHOW server_version")) {
@@ -74,22 +78,11 @@ class SystemHealthTest {
                 assertThat(version.getString(1)).startsWith("16");
             }
             try (ResultSet history = statement.executeQuery(
-                    "SELECT version, script, success FROM flyway_schema_history ORDER BY installed_rank")) {
+                    "SELECT version, script, success FROM flyway_schema_history WHERE version = '1'")) {
                 assertThat(history.next()).isTrue();
                 assertThat(history.getString("version")).isEqualTo("1");
                 assertThat(history.getString("script")).isEqualTo("V1__baseline.sql");
                 assertThat(history.getBoolean("success")).isTrue();
-                assertThat(history.next()).isFalse();
-            }
-            try (ResultSet tables = statement.executeQuery(
-                    "SELECT table_name FROM information_schema.tables "
-                            + "WHERE table_schema = 'public' AND table_type = 'BASE TABLE' "
-                            + "ORDER BY table_name")) {
-                Set<String> names = new HashSet<>();
-                while (tables.next()) {
-                    names.add(tables.getString("table_name"));
-                }
-                assertThat(names).containsExactly("flyway_schema_history");
             }
         }
     }

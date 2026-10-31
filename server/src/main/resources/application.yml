@@ -30,12 +30,25 @@ spring:
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
+  type-handlers-package: com.guoyu.english.common.persistence
   global-config:
     banner: false
 
-# 与部署环境变量对齐。健康检查响应不得回传此路径、口令或地址。
+# 与部署环境变量对齐。健康检查和业务响应不得回传口令、引导码或令牌。
 guoyu:
   media-root: ${MEDIA_ROOT:/data/media}
+  auth:
+    # 空字符串表示引导关闭。真实引导码只放环境变量，不写进仓库。
+    bootstrap-code: ${GUOYU_BOOTSTRAP_CODE:}
+    parent-session-ttl: 15m
+    pair-code-ttl: 5m
+    bootstrap-retry-window: 10m
+    # 详设 26.5：Argon2id，memory=64 MiB，iterations=3，parallelism=1。
+    argon2-memory-kib: 65536
+    argon2-iterations: 3
+    argon2-parallelism: 1
+    argon2-salt-length: 16
+    argon2-hash-length: 32
 
 logging:
   pattern:

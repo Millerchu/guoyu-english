@@ -4,8 +4,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
- * 果语服务端启动入口。业务包在后续阶段按需加入，本阶段只提供公共响应和健康检查。
- * MyBatis-Plus 会扫描本包下的 {@code @Mapper} 接口。当前没有 Mapper。
+ * 果语服务端启动入口。
+ * MyBatis-Plus 会扫描本包下的 {@code @Mapper} 接口。S06 起包含身份与儿童档案。
  */
 @SpringBootApplication
 public class GuoyuEnglishApplication {

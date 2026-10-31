@@ -2,9 +2,7 @@
 
 Java 17 + Spring Boot 3.5.16，**模块化单体**。给一个家用 NAS 装微服务是过度设计，Nacos / Redis / MQ / Seata 一律不引入。
 
-S01 已落地可编译的骨架：Maven Wrapper、统一响应、`GET /api/v1/system/health`、Flyway `V1__baseline.sql`。V1 只执行 `SELECT 1`，不建业务表。课程、身份、同步等包还没有。集成测试用 Docker 里的 `postgres:16`。家庭 NAS 尚未验收。
-
-下面的模块划分和接口目录，除健康检查外，仍是后续阶段的目标，不是本目录已经实现的接口。
+S01 已落地可编译的骨架：Maven Wrapper、统一响应、`GET /api/v1/system/health`、Flyway `V1__baseline.sql`。V1 只执行 `SELECT 1`，不建业务表。S06 在此之上增加身份：`auth`、`child` 和 Flyway `V3__family_child_device.sql`。课程、同步包还没有，也没有七天任务。集成测试用 Docker 里的 `postgres:16`。家庭 NAS 尚未验收。
 
 ## 技术基线
 
@@ -17,11 +15,11 @@ S01 已落地可编译的骨架：Maven Wrapper、统一响应、`GET /api/v1/sy
 | ArtifactId | `guoyu-english-server` |
 | ORM | MyBatis-Plus 3.5.18。不引入 Spring Data JPA |
 | 数据库 | PostgreSQL 16+。集成测试镜像 `postgres:16` |
-| 迁移 | Flyway，脚本放 `src/main/resources/db/migration`。当前只有 `V1__baseline.sql` |
+| 迁移 | Flyway，脚本放 `src/main/resources/db/migration`。当前有 `V1__baseline.sql` 和 `V3__family_child_device.sql`。V2 留给课程 |
 
 ## 模块划分
 
-每个模块内部统一四层：`controller / application / domain / infrastructure`。MyBatis-Plus 会扫描 `com.guoyu.english` 下带 `@Mapper` 的接口。当前没有 Mapper，启动日志里的 `No MyBatis mapper was found` 是预期现象。
+每个模块内部统一四层：`controller / application / domain / infrastructure`。MyBatis-Plus 会扫描 `com.guoyu.english` 下带 `@Mapper` 的接口。身份和儿童档案使用注解 SQL，不把数据库行直接当作接口响应。
 
 ```
 com.guoyu.english
@@ -55,6 +53,14 @@ com.guoyu.english
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/api/v1/system/health` | 无需令牌。`data` 只有 `status` 与 `version`。不返回口令、地址、令牌或 `MEDIA_ROOT` |
+| POST | `/api/v1/parent/bootstrap` | 正文是引导码和新 PIN，请求头带 `Idempotency-Key`。成功后创建唯一家庭并返回 15 分钟 `parentToken` |
+| POST | `/api/v1/parent/children` | 家长会话。昵称、`ageBand`（`AGE_5` / `AGE_6` / `AGE_7`）、每日分钟数、IANA 时区。相同幂等键和相同载荷返回原儿童 |
+| GET | `/api/v1/parent/children` | 家长会话。空库时 `data` 为 `[]` |
+| POST | `/api/v1/parent/pair-codes` | 家长会话换 5 分钟一次性配对码，请求里带 `childIds` |
+| POST | `/api/v1/devices/pair` | `pairCode`、`deviceId`、`platform`（`ANDROID` 或 `H5`）换设备令牌。正文出现 `pin` 或 `newPin` 时拒绝，并且不消费配对码 |
+| POST | `/api/v1/parent/sessions` | 设备令牌加 PIN 换 15 分钟家长会话。不返回设备令牌 |
+| GET | `/api/v1/parent/devices` | 家长会话。设备摘要，不含令牌 |
+| DELETE | `/api/v1/parent/devices/{deviceId}` | 家长会话撤销设备。重复调用仍然是已撤销。撤销后该设备令牌访问受保护接口返回 `DEVICE_REVOKED` |
 
 示例：
 
@@ -70,6 +76,14 @@ com.guoyu.english
   "serverTime": "2026-10-29T14:47:00.123Z"
 }
 ```
+
+身份接口的成功响应也是上面的五字段外壳，HTTP 200，`code=OK`。详设里建档写了 201，共享契约的 `OK` 固定为 200，本阶段不新增业务码。同幂等键换了载荷时返回已有的 `EVENT_ID_REUSED`（409），对应详设里的 `IDEMPOTENCY_KEY_REUSED`，不重复建档。
+
+建档响应包含 `childId`、`profileVersion=1`、`timezoneVersion=1` 和 `issuedThrough`。`issuedThrough` 目前为 null。详设要求建档时同时生成 7 日任务；共享契约把任务表放在 V5，并写明 `issued_through` 只在 V3 建列、由 S14 写入。本阶段不建课程表，也不因内容未就绪而拒绝建档。
+
+引导码只放环境变量，仓库里的默认值是空字符串，空值表示不能建家庭。相同幂等键、相同 PIN 和仍然正确的引导码，在成功后 10 分钟内重试会返回同一个 `familyId`，并另签一张家长会话；明文令牌不入库。超过窗口或换一把幂等键都不再创建家庭。全凭证丢失后的恢复码属于 S22，这里没有实现。
+
+家长 PIN 为 4–6 位数字，使用 Argon2id，随机盐，参数是 memory 64 MiB（`m=65536`）、iterations 3、parallelism 1。连续失败 5 次后按家庭和设备写入 `pin_attempt.locked_until`：30 秒、1 分钟、5 分钟、15 分钟。未满 5 次不锁定。锁定期间不再校验 PIN。配对码和令牌只存 SHA-256，PIN 和引导请求指纹走 Argon2id。日志不记录 PIN、引导码、配对码和令牌。
 
 下面其余路径仍是目标目录，还没有控制器。
 
@@ -94,7 +108,7 @@ com.guoyu.english
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| POST | `/devices/pair` | 家长 PIN + 设备信息 → 设备令牌 |
+| POST | `/devices/pair` | 已实现。配对码换设备令牌，不接受 PIN |
 | GET | `/content/packs` | 可用资源包与版本 |
 | GET | `/content/packs/{id}/manifest` | 文件列表 + sha256 + size |
 | POST | `/sync/push` | 批量上报，逐条 `eventId` 幂等 |
@@ -145,12 +159,14 @@ com.guoyu.english
 | `DB_USER` | `guoyu` | 用受限业务账号，别用 postgres 超级用户 |
 | `DB_PASSWORD` | `${DB_PASSWORD}` | 从 `.env` 读，不进仓库 |
 | `MEDIA_ROOT` | `/data/media` | 媒体只读挂载 |
+| `GUOYU_BOOTSTRAP_CODE` | `CHANGE_ME` | 一次性引导码。不要把真实值写进仓库或日志 |
 
 ## 安全红线
 
 - 禁止客户端直连数据库。
-- 家长密码加盐强哈希；设备令牌可撤销、定期更换。
-- 日志不记录录音内容、家庭 PIN、Bearer Token。
+- 家长 PIN 使用 Argon2id，参数见上文。4–6 位 PIN 只防误触，不能当成强密码。设备令牌可撤销。
+- 日志不记录录音内容、家庭 PIN、引导码、配对码或 Bearer Token。
+- 不要增加用 PIN 直接换设备令牌的接口。`/parent/sessions` 只换家长会话。
 - 上传走 MIME 白名单 + 大小限制 + 路径规范化，防目录穿越；媒体目录默认只读。
 - Flyway 只向前迁移。升级前备份 PG + 媒体目录。
 
