@@ -21,6 +21,8 @@
         <java.version>17</java.version>
         <!-- 2026-10-29 Maven Central 上的 mybatis-plus-spring-boot3-starter 正式版。 -->
         <mybatis-plus.version>3.5.18</mybatis-plus.version>
+        <!-- 与 Spring Security 6.5.11 的 Argon2 实现所用 Bouncy Castle 一致。 -->
+        <bouncycastle.version>1.80.2</bouncycastle.version>
     </properties>
 
     <dependencies>
@@ -49,6 +51,15 @@
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
             <version>${mybatis-plus.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>${bouncycastle.version}</version>
         </dependency>
 
         <dependency>

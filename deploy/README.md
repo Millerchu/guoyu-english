@@ -27,7 +27,7 @@ S03 提供一套可检查的 Docker Compose：PostgreSQL 16、Spring Boot 服务
 
 `/volume/docker/guoyu-english` 只是说明「NAS 上会有一个数据目录」时的形状示例，不是当前用户的真实路径，Compose 里也没有写死它。数据库用 Docker 命名卷。媒体目录由 `MEDIA_HOST_DIR` 指向，本地默认是仓库的 `media-samples/`。
 
-服务端通过环境变量 `DB_HOST=db`、`DB_PORT=5432`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`、`MEDIA_ROOT=/data/media` 连接。这些名字和 `server/src/main/resources/application.yml` 一致。引导账号 `POSTGRES_BOOTSTRAP_USER` 只在数据库容器第一次初始化时使用，服务端不拿它登录。
+服务端通过环境变量 `DB_HOST=db`、`DB_PORT=5432`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`、`MEDIA_ROOT=/data/media`、`GUOYU_BOOTSTRAP_CODE` 连接。这些名字和 `server/src/main/resources/application.yml` 一致。数据库引导账号 `POSTGRES_BOOTSTRAP_USER` 只在数据库容器第一次初始化时使用，服务端不拿它登录。`GUOYU_BOOTSTRAP_CODE` 是空库建家庭用的一次性引导码，和数据库引导账号不是一回事。
 
 `/api/` 由 Nginx 原样转到 `server:8080`，请求 `/api/v1/system/health` 到达服务端时仍然是 `/api/v1/system/health`。
 
@@ -45,6 +45,7 @@ S03 提供一套可检查的 Docker Compose：PostgreSQL 16、Spring Boot 服务
 | `MEDIA_HOST_DIR` | 宿主机媒体目录，容器内只读挂到 `/data/media` |
 | `TZ` | 默认 `Asia/Shanghai`，影响容器日志时钟。接口里的 `serverTime` 仍是 UTC |
 | `SPRING_PROFILES_ACTIVE` | 默认 `prod`。仓库里没有单独的 `application-prod.yml` |
+| `GUOYU_BOOTSTRAP_CODE` | 空库引导码。示例是 `CHANGE_ME`。留空则不能建家庭。不要写真实引导码或 PIN |
 
 占位符原样出现在准备对局域网开放的配置里，说明还没改，不能那样启动。
 

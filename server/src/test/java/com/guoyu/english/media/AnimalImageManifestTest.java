@@ -56,7 +56,10 @@ class AnimalImageManifestTest {
         try (Stream<Path> migrations = Files.list(
                 RepoPaths.repoRoot().resolve("server/src/main/resources/db/migration"))) {
             assertThat(migrations.map(path -> path.getFileName().toString()))
-                    .containsExactlyInAnyOrder("V1__baseline.sql", "V2__course_media.sql");
+                    .containsExactlyInAnyOrder(
+                            "V1__baseline.sql",
+                            "V2__course_media.sql",
+                            "V3__family_child_device.sql");
         }
     }
 

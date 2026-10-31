@@ -1,5 +1,7 @@
 package com.guoyu.english.common.health;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -36,7 +38,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 在 postgres:16 上验收 Flyway 与健康检查。V2 起有课程表，健康检查本身不返回这些表。
+ * 在 postgres:16 上验收 Flyway 与健康检查。V2 起有课程表，V3 起有身份表。健康检查本身不返回这些表。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
@@ -66,9 +68,11 @@ class SystemHealthTest {
     }
 
     @Test
-    void flywayAppliesV1AndV2OnPostgres16() throws Exception {
+    void flywayAppliesV1V2AndV3OnPostgres16() throws Exception {
         assertThat(POSTGRES.getDockerImageName()).contains("postgres:16");
         assertThat(sqlSessionFactory).isNotNull();
+        String baseline = Files.readString(Path.of("src/main/resources/db/migration/V1__baseline.sql"));
+        assertThat(baseline.toLowerCase()).doesNotContain("create table");
         try (Connection connection = dataSource.getConnection();
                 Statement statement = connection.createStatement()) {
             try (ResultSet version = statement.executeQuery("SHOW server_version")) {
@@ -84,8 +88,11 @@ class SystemHealthTest {
                     scripts.add(history.getString("script"));
                     assertThat(history.getBoolean("success")).isTrue();
                 }
-                assertThat(versions).containsExactly("1", "2");
-                assertThat(scripts).containsExactly("V1__baseline.sql", "V2__course_media.sql");
+                assertThat(versions).containsExactly("1", "2", "3");
+                assertThat(scripts).containsExactly(
+                        "V1__baseline.sql",
+                        "V2__course_media.sql",
+                        "V3__family_child_device.sql");
             }
             try (ResultSet tables = statement.executeQuery(
                     "SELECT table_name FROM information_schema.tables "
@@ -107,13 +114,22 @@ class SystemHealthTest {
                         "lesson_step_sentence",
                         "lesson_question",
                         "lesson_option",
-                        "lesson_question_option");
-                assertThat(names).doesNotContain(
+                        "lesson_question_option",
+                        "family_account",
+                        "parent_credential",
+                        "pin_attempt",
+                        "parent_session",
+                        "request_idempotency",
                         "child_profile",
+                        "pair_code",
+                        "pair_code_child",
                         "client_device",
+                        "device_child_binding");
+                assertThat(names).doesNotContain(
                         "learning_event",
                         "star_ledger",
-                        "daily_assignment");
+                        "daily_assignment",
+                        "sync_change_log");
             }
         }
     }

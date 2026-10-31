@@ -4,10 +4,10 @@
 
 ## 现状与架构
 
-- S01 已提供 `pom.xml`、Maven Wrapper、`common` 统一响应与健康检查、`src/main/resources/db/migration/V1__baseline.sql`。S04 已增加 `V2__course_media.sql`、`course` 与 `media` 包，以及动物课查询。身份、同步等包还没有。`./mvnw test` 依赖 Docker 中的 `postgres:16`，通过不等于家庭 NAS 已验收。
+- S01 已提供 `pom.xml`、Maven Wrapper、`common` 统一响应与健康检查、`src/main/resources/db/migration/V1__baseline.sql`。V1 不建业务表。S04 已增加 `V2__course_media.sql`、`course` 与 `media` 包，以及动物课查询。S06 增加 `auth`、`child` 和 `V3__family_child_device.sql`：空库引导、建档、配对码、配对和撤销。同步包还没有。`./mvnw test` 依赖 Docker 中的 `postgres:16`，通过不等于家庭 NAS 已验收。
 - 设计基线为 Java 17、Spring Boot 3.5.16、PostgreSQL 16+、Flyway，模块化单体；根包 `com.guoyu.english`，Maven groupId 为 `com.guoyu`。编译目标保持 17。
 - ORM 锁定 MyBatis-Plus 3.5.18，不引入 Spring Data JPA。
-- 按业务能力组织 `auth / child / course / learning / book / phonics / game / reward / calendar / report / content / sync / media / speech / common`。这是逻辑包规划，不是要求创建 15 个 Maven 子工程。目前有 `common`、`course`、`media`。
+- 按业务能力组织 `auth / child / course / learning / book / phonics / game / reward / calendar / report / content / sync / media / speech / common`。这是逻辑包规划，不是要求创建 15 个 Maven 子工程。目前有 `common`、`course`、`media`、`auth`、`child`。
 - 每个模块按实际复杂度划分 `controller / application / domain / infrastructure`；不为凑层数新增空类、无意义接口或重复转发。健康检查只有控制器和数据对象。
 
 ## Java 与职责边界
