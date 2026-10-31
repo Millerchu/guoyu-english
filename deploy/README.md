@@ -1,93 +1,81 @@
-# deploy/ — NAS 部署配置
+# deploy/ — 本机 Compose 与家庭局域网入口
 
-家庭 NAS 上的 Docker Compose 编排、Nginx 反向代理、环境变量模板与备份脚本。
+S03 提供一套可检查的 Docker Compose：PostgreSQL 16、Spring Boot 服务端、Nginx 上的 H5 入口。家庭 NAS、可信 HTTPS、录音、备份和恢复都还没有验收。
 
-> **当前状态：空目录。** 没有 `docker-compose.yml`，没有 `.env.example`，没有 `nginx/`。
-> 根 README 不再链接不存在的 `deploy/examples/` 示例文件。正式 Compose 按 [开发计划](../docs/roadmap.md) 的 S03 再添加。
-> 下面为依据《详细设计 V1.9》第 13、26.4 章确定的**目标拓扑**，不是已可运行的配置。
+操作步骤和健康检查示例见 [开发指南](../docs/development.md)。本文件说明这些文件实际做什么、哪些端口开着、哪些事情不能做。
 
-## 容器拓扑
+## 当前文件
 
-| 容器 | 镜像 | 端口策略 | 持久化 |
+| 文件 | 作用 |
+| --- | --- |
+| [docker-compose.yml](docker-compose.yml) | 三个服务：`db`、`server`、`web` |
+| [.env.example](.env.example) | 变量名和 `CHANGE_ME` 占位符。复制成 `.env` 后本地修改，`.env` 不入库 |
+| [nginx/nginx.conf](nginx/nginx.conf) | H5、`/api/` 反代、`/media/` 只读素材 |
+| [postgres/init/01-app-role.sh](postgres/init/01-app-role.sh) | 首次初始化时创建服务端使用的数据库角色 |
+| [../server/Dockerfile](../server/Dockerfile) | 服务端镜像 |
+| [../client/Dockerfile](../client/Dockerfile) | H5 镜像，构建时执行 `npm run build:h5` |
+
+`backup/` 还没有。每日备份是 S21，不在本目录提前加脚本。
+
+## 容器
+
+| 服务 | 镜像 | 宿主机端口 | 持久化 |
 | --- | --- | --- | --- |
-| `guoyu-english-db` | `postgres:16-alpine` | **仅内部网络，不映射 5432** | `./postgres/data` |
-| `guoyu-english-server` | 自构建 | 内部 8080 | `./media` 只读、`./app/logs` 可写 |
-| `guoyu-english-web` | Nginx | 局域网 8080 | `./media` 只读挂载 |
-| `guoyu-english-backup`（可选） | 定时任务 | 无 | `./backup` |
+| `db` | `postgres:16.15-alpine` | 不映射。容器内 5432 只在 Compose 网络 | 命名卷 `guoyu-postgres-data` |
+| `server` | 本机构建 `guoyu-english-server:0.0.1` | 不映射。容器内 8080 | 媒体目录只读挂载 |
+| `web` | 本机构建 `guoyu-english-web:0.0.1` | 默认 `127.0.0.1:8080` 转到容器 80 | 同一媒体目录只读挂载 |
 
-TLS 反代（NAS 自带反代或 Caddy/Nginx）是**推荐项而非可选项**——H5 录音和 Service Worker 必须走可信 HTTPS。
+`/volume/docker/guoyu-english` 只是说明「NAS 上会有一个数据目录」时的形状示例，不是当前用户的真实路径，Compose 里也没有写死它。数据库用 Docker 命名卷。媒体目录由 `MEDIA_HOST_DIR` 指向，本地默认是仓库的 `media-samples/`。
 
-## NAS 目录结构
+服务端通过环境变量 `DB_HOST=db`、`DB_PORT=5432`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`、`MEDIA_ROOT=/data/media` 连接。这些名字和 `server/src/main/resources/application.yml` 一致。引导账号 `POSTGRES_BOOTSTRAP_USER` 只在数据库容器第一次初始化时使用，服务端不拿它登录。
 
-```
-/volume/docker/guoyu-english/
-├── docker-compose.yml
-├── .env                    # 不入仓库
-├── nginx/
-│   └── conf.d/
-├── postgres/
-│   └── data/
-├── media/
-│   ├── image/
-│   ├── audio/
-│   ├── book/
-│   └── speech/
-├── app/
-│   └── logs/
-└── backup/
-```
-
-实际挂载点按 NAS 厂商存储路径确定，`/volume/docker` 只是 Synology 风格示例。
+`/api/` 由 Nginx 原样转到 `server:8080`，请求 `/api/v1/system/health` 到达服务端时仍然是 `/api/v1/system/health`。
 
 ## 环境变量
 
-| 变量 | 必填 | 说明 |
-| --- | --- | --- |
-| `DB_PASSWORD` | 是 | PostgreSQL 业务账号密码，**不要用示例值** |
-| `DB_NAME` | 是 | 默认 `guoyu_english` |
-| `DB_USER` | 是 | 默认 `guoyu`，限制权限，别用 `postgres` |
-| `MEDIA_ROOT` | 是 | 容器内路径，默认 `/data/media` |
-| `SPRING_PROFILES_ACTIVE` | 是 | `prod` |
-| `TZ` | 建议 | `Asia/Shanghai`，影响日志与聚合任务 |
+| 变量 | 说明 |
+| --- | --- |
+| `HTTP_BIND` | 默认 `127.0.0.1`。局域网试用时改成 NAS 的局域网地址，不要用 `0.0.0.0` |
+| `HTTP_PORT` | 默认 `8080`，只作为 HTTP 入口 |
+| `POSTGRES_BOOTSTRAP_USER` | 容器内引导账号，默认 `postgres`，不要和 `DB_USER` 相同 |
+| `POSTGRES_BOOTSTRAP_PASSWORD` | 引导口令。示例是 `CHANGE_ME` |
+| `DB_NAME` | 默认 `guoyu_english` |
+| `DB_USER` | 默认 `guoyu`。服务端只用这个账号 |
+| `DB_PASSWORD` | 服务端口令。示例是 `CHANGE_ME` |
+| `MEDIA_HOST_DIR` | 宿主机媒体目录，容器内只读挂到 `/data/media` |
+| `TZ` | 默认 `Asia/Shanghai`，影响容器日志时钟。接口里的 `serverTime` 仍是 UTC |
+| `SPRING_PROFILES_ACTIVE` | 默认 `prod`。仓库里没有单独的 `application-prod.yml` |
 
-以后的 `.env.example` 只放 `CHANGE_ME` 这类可识别占位符。占位符原样出现在正式配置里，说明没改，不能上线。
+占位符原样出现在准备对局域网开放的配置里，说明还没改，不能那样启动。
 
-## 首次部署步骤（拓扑确定后）
+## 启动
 
-1. 在 NAS 上建好上面的目录树。
-2. 复制 `.env.example` 为 `.env`，填写 `DB_PASSWORD` 等真实值，`chmod 600 .env`。
-3. 构建并推送 `guoyu-english-server`、`guoyu-english-web` 镜像，或在本机构建后导入。
-4. `docker compose up -d`。
-5. 验证 `GET /api/v1/system/health` 返回正常。
-6. 配内网域名 + 可信证书，再用平板浏览器验证 H5 录音可用。
-7. 用 Android 端完成设备配对，下载一个离线包，然后**断网验证**。
+在 `deploy/` 目录：
 
-## 安全红线
+```bash
+cp .env.example .env
+docker compose --env-file .env.example config >/tmp/guoyu-compose-config.txt
+docker compose --env-file .env.example up -d --build
+curl -sS http://127.0.0.1:8080/api/v1/system/health
+```
 
-- **不向公网映射任何端口。** NAS 默认不暴露，关闭 UPnP 自动端口映射。
-- 5432 只在 Docker 内部网络，宿主机上也别开。
-- `.env` 不进仓库，不进备份包的公开部分。
-- 媒体目录容器内只读挂载。
-- 升级流程：备份 PG dump + 媒体清单快照 → 拉新镜像 → 启动 → 验证。失败回滚旧镜像 + 恢复备份。Flyway 只向前，别指望自动回滚。
+`docker compose config` 会打印展开后的口令。用示例文件时只能看到 `CHANGE_ME`。已经写成真实口令之后，不要把这条命令的输出贴出去。
+
+更完整的检查步骤、停机方式和升级注意在 [开发指南](../docs/development.md)。
+
+## 安全边界
+
+- 不对公网映射端口，不改路由器、UPnP、防火墙或 NAS 安全设置。
+- 宿主机不监听 5432。客户端也不能直连数据库。
+- 媒体目录以只读方式挂进 `server` 和 `web`。录音上传要单独的可写目录，那是以后的阶段，Nginx 现在没有公开可写的录音路径。
+- `.env`、真实口令、证书私钥、家庭地址不入库。
+- 本机 HTTP 打开首页，不等于录音可用。录音和 Service Worker 仍要设备信任的 HTTPS。
+- 不执行 `docker compose down -v`，除非明确知道这会删掉数据库卷，并且这只是一次还没有学习数据的本地试验。
 
 ## 备份与恢复
 
-| 项 | 频率 | 位置 |
-| --- | --- | --- |
-| PostgreSQL dump | 每天 | 与数据库容器**不同的卷**或外部存储 |
-| 媒体目录 | 每周增量校验 | 同上 |
+还没有备份脚本。数据库卷和媒体目录需要分开备份，保留设想仍是以后的 S21。恢复未验证。Flyway 不能自动倒回旧结构。
 
-恢复必须实际演练过。至少验证两个场景：**重复 Push 不重复加星**、**冲突合并不丢记录**。没演练过的备份等于没有备份。
+## 资源
 
-## 资源建议
-
-2 核 CPU / 2–4 GB 内存 / 10 GB 起步存储。家庭单用户压力极低，瓶颈永远是绘本和音频的体积。
-
-## 待补文件
-
-- `docker-compose.yml`（3 容器拓扑）
-- `.env.example`
-- `nginx/conf.d/guoyu-english.conf`（H5 静态资源 + `/api` 反代 + `/media` 静态）
-- `backup/` 定时备份脚本
-
-这些文件按 [开发计划](../docs/roadmap.md) 的 S03、S21 添加。根 README 已不再链接不存在的 V1.7 Compose 示例。
+家庭单用户用 2 核 CPU、2–4 GB 内存可以起步。本阶段的服务端镜像把 Java 堆限制在容器内存的 75% 以内。这不是 NAS 上的实测容量。

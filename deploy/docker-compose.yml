@@ -1,0 +1,105 @@
+# 本机或家庭局域网的三个容器：数据库、服务端、Nginx。
+# 宿主机只发布 HTTP_BIND:HTTP_PORT。数据库的 5432 不映射出来。
+# docker compose config 会展开 .env。检查配置时用 .env.example，
+# 不要把填了真实口令的 config 输出贴到聊天或 PR。
+
+name: guoyu-english
+
+services:
+  db:
+    image: postgres:16.15-alpine
+    container_name: guoyu-english-db
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      POSTGRES_USER: ${POSTGRES_BOOTSTRAP_USER:?set POSTGRES_BOOTSTRAP_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_BOOTSTRAP_PASSWORD:?set POSTGRES_BOOTSTRAP_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:?set DB_NAME}
+      DB_NAME: ${DB_NAME:?set DB_NAME}
+      DB_USER: ${DB_USER:?set DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+    volumes:
+      - guoyu-postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -U \"$$DB_USER\" -d \"$$DB_NAME\" && export PGPASSWORD=\"$$DB_PASSWORD\" && psql -h 127.0.0.1 -v ON_ERROR_STOP=1 -U \"$$DB_USER\" -d \"$$DB_NAME\" -c 'SELECT 1' >/dev/null",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - guoyu
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  server:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+    image: guoyu-english-server:0.0.1
+    container_name: guoyu-english-server
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      SERVER_PORT: "8080"
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:?set DB_NAME}
+      DB_USER: ${DB_USER:?set DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+      MEDIA_ROOT: /data/media
+      SPRING_FLYWAY_CONNECT_RETRIES: "12"
+      SPRING_FLYWAY_CONNECT_RETRIES_INTERVAL: 5s
+      SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT: "60000"
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75.0 -Dfile.encoding=UTF-8"
+    volumes:
+      - ${MEDIA_HOST_DIR:?set MEDIA_HOST_DIR}:/data/media:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - guoyu
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  web:
+    build:
+      context: ..
+      dockerfile: client/Dockerfile
+    image: guoyu-english-web:0.0.1
+    container_name: guoyu-english-web
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      - "${HTTP_BIND:?set HTTP_BIND}:${HTTP_PORT:?set HTTP_PORT}:80"
+    volumes:
+      - ${MEDIA_HOST_DIR:?set MEDIA_HOST_DIR}:/data/media:ro
+    depends_on:
+      server:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - guoyu
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  guoyu:
+    driver: bridge
+
+volumes:
+  guoyu-postgres-data:

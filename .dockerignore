@@ -1,0 +1,13 @@
+# client/Dockerfile 的构建上下文是仓库根目录。这里只缩小上下文，
+# 避免把依赖目录、服务端构建产物和本地环境文件打进网页镜像。
+.git
+.idea
+**/node_modules
+**/dist
+**/target
+server
+media-samples
+docs
+**/.env
+**/.env.*
+**/*.log
