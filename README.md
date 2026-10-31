@@ -4,7 +4,7 @@
 
 **核心原则：NAS 局域网服务端为主，外出离线学习，回家自动同步。**
 
-> 当前阶段：设计已到 V1.9，应用尚未发布。仓库还没有可运行的 Spring Boot / uni-app 脚手架。实施顺序见 [开发计划](docs/roadmap.md)，一次只做一个阶段。下列功能仍是规划能力。
+> 当前阶段：设计已到 V1.9，应用尚未发布。服务端骨架、H5 首页壳和本机 Compose 已经在仓库里。家庭 NAS 和学习闭环还没有。实施顺序见 [开发计划](docs/roadmap.md)。下列功能仍是规划能力。
 
 ## 产品规划
 
@@ -55,7 +55,7 @@ Android APK 安装在手机或平板上；H5、后端及数据库运行在 NAS�
 - [开发计划](docs/roadmap.md)：按阶段开 PR 的实施切片。
 - [文档索引](docs/README.md)
 
-仓库里没有详设 PDF、独立参考 SQL 或 V1.7 Compose 示例文件。正式迁移和 Compose 要到开发计划里的对应阶段才新增，不能把尚未存在的路径当成已交付。
+仓库里没有详设 PDF、独立参考 SQL 或 V1.7 Compose 示例文件。正式迁移仍以 `server/src/main/resources/db/migration` 里已经存在的脚本为准。S03 的本机 Compose 在 [deploy/](deploy/README.md)，家庭 NAS 还没有验收。
 
 ## 开始参与开发
 
@@ -64,11 +64,11 @@ git clone https://github.com/Millerchu/guoyu-english.git
 cd guoyu-english
 ```
 
-1. 先阅读 [V1.9 详细设计](docs/设计文档/guoyu-english-detailed-design-v1.9.docx) 和 [开发计划](docs/roadmap.md)。开发指南要等本地命令真实存在后再写，目前没有 `docs/development.md`。
+1. 先阅读 [V1.9 详细设计](docs/设计文档/guoyu-english-detailed-design-v1.9.docx) 和 [开发计划](docs/roadmap.md)。本机拉起数据库、服务和网页入口的命令在 [开发指南](docs/development.md)。
 2. 使用 IDEA 打开仓库，后端代码位于 `server/`；客户端可使用 HBuilderX 或兼容 uni-app 的开发环境维护。
 3. 按开发计划从后端脚手架或客户端脚手架做起。一个阶段一个 PR，确认依赖版本并提交锁文件后，再进入动物课学习闭环。
 
-当前没有 `pom.xml`、`package.json` 或正式部署镜像，因此暂不提供启动、构建或一键部署命令。
+后端在 `server/`，客户端在 `client/`。本机同时看网页、接口和数据库的步骤在 [开发指南](docs/development.md)。还没有可发布的 APK，也还没有家庭 NAS 验收。
 
 ## 开发约定
 

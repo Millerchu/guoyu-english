@@ -105,10 +105,10 @@ class OnboardingFlowTest {
     }
 
     @Test
-    void migratesOnlyV3IdentityTables() throws Exception {
+    void migratesV2CourseThenV3Identity() throws Exception {
         List<Map<String, Object>> versions = jdbcTemplate.queryForList(
                 "SELECT version, success FROM flyway_schema_history ORDER BY installed_rank");
-        assertThat(versions).extracting(row -> row.get("version").toString()).containsExactly("1", "3");
+        assertThat(versions).extracting(row -> row.get("version").toString()).containsExactly("1", "2", "3");
         assertThat(versions).allMatch(row -> Boolean.TRUE.equals(row.get("success")));
 
         List<String> tables = jdbcTemplate.queryForList(
@@ -116,6 +116,8 @@ class OnboardingFlowTest {
                         + "WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name",
                 String.class);
         assertThat(tables).contains(
+                "lesson",
+                "course_theme",
                 "family_account",
                 "parent_credential",
                 "pin_attempt",
@@ -127,8 +129,6 @@ class OnboardingFlowTest {
                 "client_device",
                 "device_child_binding");
         assertThat(tables).doesNotContain(
-                "lesson",
-                "course_theme",
                 "daily_assignment",
                 "learning_event",
                 "star_ledger",

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Original geometric illustration for animals-001. No third-party artwork. No word labels. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img">
+  <rect width="240" height="240" rx="36" fill="#E8F8EF"/>
+  <ellipse cx="92" cy="78" rx="16" ry="48" fill="#F7F4EF"/>
+  <ellipse cx="148" cy="78" rx="16" ry="48" fill="#F7F4EF"/>
+  <ellipse cx="92" cy="82" rx="8" ry="32" fill="#F4A3B5"/>
+  <ellipse cx="148" cy="82" rx="8" ry="32" fill="#F4A3B5"/>
+  <ellipse cx="120" cy="176" rx="52" ry="36" fill="#F7F4EF"/>
+  <circle cx="168" cy="168" r="12" fill="#F3E6EA"/>
+  <circle cx="120" cy="124" r="46" fill="#F7F4EF"/>
+  <circle cx="104" cy="122" r="6" fill="#264653"/>
+  <circle cx="136" cy="122" r="6" fill="#264653"/>
+  <circle cx="106" cy="120" r="2" fill="#FFFFFF"/>
+  <circle cx="138" cy="120" r="2" fill="#FFFFFF"/>
+  <ellipse cx="120" cy="136" rx="6" ry="4" fill="#F4A3B5"/>
+  <path d="M112 144 Q120 150 128 144" fill="none" stroke="#264653" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="96" cy="136" r="6" fill="#F8D5DC"/>
+  <circle cx="144" cy="136" r="6" fill="#F8D5DC"/>
+</svg>

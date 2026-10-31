@@ -2,7 +2,9 @@
 
 Java 17 + Spring Boot 3.5.16，**模块化单体**。给一个家用 NAS 装微服务是过度设计，Nacos / Redis / MQ / Seata 一律不引入。
 
-S01 已落地可编译的骨架：Maven Wrapper、统一响应、`GET /api/v1/system/health`、Flyway `V1__baseline.sql`。V1 只执行 `SELECT 1`，不建业务表。S06 在此之上增加身份：`auth`、`child` 和 Flyway `V3__family_child_device.sql`。课程、同步包还没有，也没有七天任务。集成测试用 Docker 里的 `postgres:16`。家庭 NAS 尚未验收。
+S01 已落地可编译的骨架：Maven Wrapper、统一响应、`GET /api/v1/system/health`、Flyway `V1__baseline.sql`。V1 只执行 `SELECT 1`，不建业务表。S04 在 `V2__course_media.sql` 写入课程、词条、媒体和认一认题目，并提供 `GET /api/v1/lessons/{lessonId}?version=`。S06 增加身份：`auth`、`child` 和 Flyway `V3__family_child_device.sql`。同步包还没有，也没有七天任务。集成测试用 Docker 里的 `postgres:16`。家庭 NAS 尚未验收。
+
+下面的模块划分里，还没有控制器的目录仍是后续阶段的目标。健康检查、动物课查询和身份接口已经实现。
 
 ## 技术基线
 
@@ -15,11 +17,11 @@ S01 已落地可编译的骨架：Maven Wrapper、统一响应、`GET /api/v1/sy
 | ArtifactId | `guoyu-english-server` |
 | ORM | MyBatis-Plus 3.5.18。不引入 Spring Data JPA |
 | 数据库 | PostgreSQL 16+。集成测试镜像 `postgres:16` |
-| 迁移 | Flyway，脚本放 `src/main/resources/db/migration`。当前有 `V1__baseline.sql` 和 `V3__family_child_device.sql`。V2 留给课程 |
+| 迁移 | Flyway，脚本放 `src/main/resources/db/migration`。当前有 `V1__baseline.sql`、`V2__course_media.sql` 和 `V3__family_child_device.sql` |
 
 ## 模块划分
 
-每个模块内部统一四层：`controller / application / domain / infrastructure`。MyBatis-Plus 会扫描 `com.guoyu.english` 下带 `@Mapper` 的接口。身份和儿童档案使用注解 SQL，不把数据库行直接当作接口响应。
+每个模块内部统一四层：`controller / application / domain / infrastructure`。MyBatis-Plus 会扫描 `com.guoyu.english` 下带 `@Mapper` 的接口。课程查询使用 `LessonQueryMapper`。身份和儿童档案使用注解 SQL，不把数据库行直接当作接口响应。同步模块还没有 Mapper。
 
 ```
 com.guoyu.english
@@ -53,6 +55,7 @@ com.guoyu.english
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/api/v1/system/health` | 无需令牌。`data` 只有 `status` 与 `version`。不返回口令、地址、令牌或 `MEDIA_ROOT` |
+| GET | `/api/v1/lessons/{lessonId}?version=` | 已发布课程。`animals-001` 的 `version=1` 返回主题、五个词、五个句子和听、说、认、读四步。未知课或未知版本为 400 `INVALID_ARGUMENT`。本接口仍不校验设备令牌 |
 | POST | `/api/v1/parent/bootstrap` | 正文是引导码和新 PIN，请求头带 `Idempotency-Key`。成功后创建唯一家庭并返回 15 分钟 `parentToken` |
 | POST | `/api/v1/parent/children` | 家长会话。昵称、`ageBand`（`AGE_5` / `AGE_6` / `AGE_7`）、每日分钟数、IANA 时区。相同幂等键和相同载荷返回原儿童 |
 | GET | `/api/v1/parent/children` | 家长会话。空库时 `data` 为 `[]` |
@@ -77,11 +80,17 @@ com.guoyu.english
 }
 ```
 
-身份接口的成功响应也是上面的五字段外壳，HTTP 200，`code=OK`。详设里建档写了 201，共享契约的 `OK` 固定为 200，本阶段不新增业务码。同幂等键换了载荷时返回已有的 `EVENT_ID_REUSED`（409），对应详设里的 `IDEMPOTENCY_KEY_REUSED`，不重复建档。
+`animals-001` 版本 1 的 `data` 含 `lessonId`、`version`、`themeId`、`themeNameZh`（动物）、`themeNameEn`（Animals）、`lexemes`、`sentences`、`steps`。听一步是五个 `lexemeId`，说一步和读一步是五个 `sentenceId`，认一步是 `q-cat` 到 `q-fish`，选项只有 `optionId` 和 `lexemeId`。图片 `storageKey` 形如 `image/animals/cat.svg`，音频形如 `audio/animals/cat-v1.mp3`，都是相对路径。音频字段来自 `media-samples/audio/animals/metadata.json`，不重写 mp3。
 
-建档响应包含 `childId`、`profileVersion=1`、`timezoneVersion=1` 和 `issuedThrough`。`issuedThrough` 目前为 null。详设要求建档时同时生成 7 日任务；共享契约把任务表放在 V5，并写明 `issued_through` 只在 V3 建列、由 S14 写入。本阶段不建课程表，也不因内容未就绪而拒绝建档。
+详设 23.2 把句子放在 `lesson_step.definition_json`。这里的正文在 `lesson_sentence`，步骤 JSON 只存有序 id，避免说和读各写一份。查询从句子表取中英文和音频。详设 24.2 写课程接口要授权设备。S06 已经有设备令牌，但课程查询这次仍不强制带令牌，响应没有儿童、口令或绝对路径。详设目录里的「五步」含小游戏，共享契约 P03 规定这版种子不含小游戏，所以这一版只有四步，读一步不是第一张任务的必做步骤。
 
-引导码只放环境变量，仓库里的默认值是空字符串，空值表示不能建家庭。相同幂等键、相同 PIN 和仍然正确的引导码，在成功后 10 分钟内重试会返回同一个 `familyId`，并另签一张家长会话；明文令牌不入库。超过窗口或换一把幂等键都不再创建家庭。全凭证丢失后的恢复码属于 S22，这里没有实现。
+H5 能否显示这些 SVG 留到 S10。若到时不能显示，再把同一图形转成自制栅格图，并同时改哈希，不在课程查询里换图库。
+
+身份接口的成功响应也是上面的五字段外壳，HTTP 200，`code=OK`。详设里建档写了 201，共享契约的 `OK` 固定为 200，不新增业务码。同幂等键换了载荷时返回已有的 `EVENT_ID_REUSED`（409），对应详设里的 `IDEMPOTENCY_KEY_REUSED`，不重复建档。
+
+建档响应包含 `childId`、`profileVersion=1`、`timezoneVersion=1` 和 `issuedThrough`。`issuedThrough` 目前为 null。详设要求建档时同时生成 7 日任务；共享契约把任务表放在 V5，并写明 `issued_through` 只在 V3 建列、由 S14 写入。建档不因课程尚未被这次请求读取而拒绝，也不写 `daily_assignment`。
+
+引导码只放环境变量 `GUOYU_BOOTSTRAP_CODE`。仓库里的默认值是空字符串，空值表示不能建家庭。Compose 示例使用 `CHANGE_ME` 占位符。相同幂等键、相同 PIN 和仍然正确的引导码，在成功后 10 分钟内重试会返回同一个 `familyId`，并另签一张家长会话；明文令牌不入库。超过窗口或换一把幂等键都不再创建家庭。全凭证丢失后的恢复码属于 S22，这里没有实现。
 
 家长 PIN 为 4–6 位数字，使用 Argon2id，随机盐，参数是 memory 64 MiB（`m=65536`）、iterations 3、parallelism 1。连续失败 5 次后按家庭和设备写入 `pin_attempt.locked_until`：30 秒、1 分钟、5 分钟、15 分钟。未满 5 次不锁定。锁定期间不再校验 PIN。配对码和令牌只存 SHA-256，PIN 和引导请求指纹走 Argon2id。日志不记录 PIN、引导码、配对码和令牌。
 
@@ -92,7 +101,6 @@ com.guoyu.english
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/home/today` | 首页今日课程、进度、奖励概览 |
-| GET | `/lessons/{id}` | 课程与步骤 JSON |
 | GET | `/books/{id}/pages` | 页码、分词、音频映射 |
 | POST | `/books/{bookId}/progress` | 提交阅读进度 |
 | GET | `/phonics/today` | 今日拼读任务 |
@@ -199,4 +207,4 @@ export SPRING_PROFILES_ACTIVE=local
 curl -sS http://127.0.0.1:8080/api/v1/system/health
 ```
 
-Compose、镜像和家庭 NAS 不在本阶段。
+本机 Compose 在 `deploy/`。家庭 NAS 尚未验收。

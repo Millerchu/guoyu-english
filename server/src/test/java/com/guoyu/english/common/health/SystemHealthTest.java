@@ -7,7 +7,9 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -36,7 +38,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 在 postgres:16 上验收 Flyway V1 和健康检查。
+ * 在 postgres:16 上验收 Flyway 与健康检查。V2 起有课程表，V3 起有身份表。健康检查本身不返回这些表。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
@@ -66,7 +68,7 @@ class SystemHealthTest {
     }
 
     @Test
-    void flywayAppliesV1OnPostgres16() throws Exception {
+    void flywayAppliesV1V2AndV3OnPostgres16() throws Exception {
         assertThat(POSTGRES.getDockerImageName()).contains("postgres:16");
         assertThat(sqlSessionFactory).isNotNull();
         String baseline = Files.readString(Path.of("src/main/resources/db/migration/V1__baseline.sql"));
@@ -78,11 +80,56 @@ class SystemHealthTest {
                 assertThat(version.getString(1)).startsWith("16");
             }
             try (ResultSet history = statement.executeQuery(
-                    "SELECT version, script, success FROM flyway_schema_history WHERE version = '1'")) {
-                assertThat(history.next()).isTrue();
-                assertThat(history.getString("version")).isEqualTo("1");
-                assertThat(history.getString("script")).isEqualTo("V1__baseline.sql");
-                assertThat(history.getBoolean("success")).isTrue();
+                    "SELECT version, script, success FROM flyway_schema_history ORDER BY installed_rank")) {
+                List<String> versions = new ArrayList<>();
+                List<String> scripts = new ArrayList<>();
+                while (history.next()) {
+                    versions.add(history.getString("version"));
+                    scripts.add(history.getString("script"));
+                    assertThat(history.getBoolean("success")).isTrue();
+                }
+                assertThat(versions).containsExactly("1", "2", "3");
+                assertThat(scripts).containsExactly(
+                        "V1__baseline.sql",
+                        "V2__course_media.sql",
+                        "V3__family_child_device.sql");
+            }
+            try (ResultSet tables = statement.executeQuery(
+                    "SELECT table_name FROM information_schema.tables "
+                            + "WHERE table_schema = 'public' AND table_type = 'BASE TABLE' "
+                            + "ORDER BY table_name")) {
+                Set<String> names = new HashSet<>();
+                while (tables.next()) {
+                    names.add(tables.getString("table_name"));
+                }
+                assertThat(names).containsExactlyInAnyOrder(
+                        "flyway_schema_history",
+                        "course_theme",
+                        "media_asset",
+                        "lexeme",
+                        "lesson",
+                        "lesson_step",
+                        "lesson_lexeme",
+                        "lesson_sentence",
+                        "lesson_step_sentence",
+                        "lesson_question",
+                        "lesson_option",
+                        "lesson_question_option",
+                        "family_account",
+                        "parent_credential",
+                        "pin_attempt",
+                        "parent_session",
+                        "request_idempotency",
+                        "child_profile",
+                        "pair_code",
+                        "pair_code_child",
+                        "client_device",
+                        "device_child_binding");
+                assertThat(names).doesNotContain(
+                        "learning_event",
+                        "star_ledger",
+                        "daily_assignment",
+                        "sync_change_log");
             }
         }
     }
