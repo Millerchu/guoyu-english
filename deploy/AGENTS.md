@@ -4,7 +4,7 @@
 
 ## 现状与目标
 
-- 指南建立时只有 README，没有正式 Compose、`.env.example`、Dockerfile、Nginx 配置或备份脚本；文档中的配置与命令都是规划，不能声称可一键部署。
+- S03 已加入 `docker-compose.yml`、`.env.example`、Nginx 配置，以及服务端和 H5 的镜像构建文件。这是本机可检查的编排，不是家庭 NAS 已验收，也不是公网入口。备份脚本仍留给 S21，恢复未验证。
 - 目标是家庭 NAS 上的 PostgreSQL 16+、Spring Boot 服务、Nginx H5 / API / 媒体入口，可按需要加入备份任务。
 - NAS 挂载路径、CPU 架构、可用端口和证书能力需实际核对；`/volume/docker/guoyu-english` 是示例，不能当成当前用户真实路径。
 

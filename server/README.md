@@ -2,7 +2,7 @@
 
 Java 17 + Spring Boot 3.5.16，**模块化单体**。给一个家用 NAS 装微服务是过度设计，Nacos / Redis / MQ / Seata 一律不引入。
 
-S01 已落地可编译的骨架：Maven Wrapper、统一响应、`GET /api/v1/system/health`、Flyway `V1__baseline.sql`。V1 只执行 `SELECT 1`，不建业务表。课程、身份、同步等包还没有。集成测试用 Docker 里的 `postgres:16`。家庭 NAS 尚未验收。
+S01 已落地可编译的骨架：Maven Wrapper、统一响应、`GET /api/v1/system/health`、Flyway `V1__baseline.sql`。S04 在 `V2__course_media.sql` 写入课程、词条、媒体和认一认题目，并提供 `GET /api/v1/lessons/{lessonId}?version=`。身份、同步等包还没有。集成测试用 Docker 里的 `postgres:16`。家庭 NAS 尚未验收。
 
 下面的模块划分和接口目录，除健康检查外，仍是后续阶段的目标，不是本目录已经实现的接口。
 
@@ -17,11 +17,11 @@ S01 已落地可编译的骨架：Maven Wrapper、统一响应、`GET /api/v1/sy
 | ArtifactId | `guoyu-english-server` |
 | ORM | MyBatis-Plus 3.5.18。不引入 Spring Data JPA |
 | 数据库 | PostgreSQL 16+。集成测试镜像 `postgres:16` |
-| 迁移 | Flyway，脚本放 `src/main/resources/db/migration`。当前只有 `V1__baseline.sql` |
+| 迁移 | Flyway，脚本放 `src/main/resources/db/migration`。当前有 `V1__baseline.sql` 和 `V2__course_media.sql` |
 
 ## 模块划分
 
-每个模块内部统一四层：`controller / application / domain / infrastructure`。MyBatis-Plus 会扫描 `com.guoyu.english` 下带 `@Mapper` 的接口。当前没有 Mapper，启动日志里的 `No MyBatis mapper was found` 是预期现象。
+每个模块内部统一四层：`controller / application / domain / infrastructure`。MyBatis-Plus 会扫描 `com.guoyu.english` 下带 `@Mapper` 的接口。课程查询使用 `LessonQueryMapper`。身份、同步等模块还没有 Mapper。
 
 ```
 com.guoyu.english
@@ -55,6 +55,7 @@ com.guoyu.english
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/api/v1/system/health` | 无需令牌。`data` 只有 `status` 与 `version`。不返回口令、地址、令牌或 `MEDIA_ROOT` |
+| GET | `/api/v1/lessons/{lessonId}?version=` | 已发布课程。`animals-001` 的 `version=1` 返回主题、五个词、五个句子和听、说、认、读四步。未知课或未知版本为 400 `INVALID_ARGUMENT` |
 
 示例：
 
@@ -71,6 +72,12 @@ com.guoyu.english
 }
 ```
 
+`animals-001` 版本 1 的 `data` 含 `lessonId`、`version`、`themeId`、`themeNameZh`（动物）、`themeNameEn`（Animals）、`lexemes`、`sentences`、`steps`。听一步是五个 `lexemeId`，说一步和读一步是五个 `sentenceId`，认一步是 `q-cat` 到 `q-fish`，选项只有 `optionId` 和 `lexemeId`。图片 `storageKey` 形如 `image/animals/cat.svg`，音频形如 `audio/animals/cat-v1.mp3`，都是相对路径。音频字段来自 `media-samples/audio/animals/metadata.json`，本阶段不重写 mp3。
+
+详设 23.2 把句子放在 `lesson_step.definition_json`。这里的正文在 `lesson_sentence`，步骤 JSON 只存有序 id，避免说和读各写一份。查询从句子表取中英文和音频。详设 24.2 写课程接口要授权设备；设备令牌属于 S06，本阶段不建认证包，也不校验令牌。响应没有儿童、口令或绝对路径。详设目录里的「五步」含小游戏，共享契约 P03 规定这版种子不含小游戏，所以这一版只有四步，读一步不是第一张任务的必做步骤。
+
+H5 能否显示这些 SVG 留到 S10。若到时不能显示，再把同一图形转成自制栅格图，并同时改哈希，不在本阶段换图库。
+
 下面其余路径仍是目标目录，还没有控制器。
 
 ### 业务接口
@@ -78,7 +85,6 @@ com.guoyu.english
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/home/today` | 首页今日课程、进度、奖励概览 |
-| GET | `/lessons/{id}` | 课程与步骤 JSON |
 | GET | `/books/{id}/pages` | 页码、分词、音频映射 |
 | POST | `/books/{bookId}/progress` | 提交阅读进度 |
 | GET | `/phonics/today` | 今日拼读任务 |
