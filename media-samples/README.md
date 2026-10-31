@@ -2,7 +2,7 @@
 
 存放**自制或已取得授权**的演示素材：示例单词卡、示例音频、示例绘本页。
 
-> **当前状态：** 动物课十段慢速英文示范音在 [`audio/animals/`](audio/animals/MANIFEST.md)。图片仍由后续阶段制作，这里还没有。
+> **当前状态：** 动物课十段慢速英文示范音在 [`audio/animals/`](audio/animals/MANIFEST.md)。五个自制 SVG 在 [`image/animals/`](image/animals/MANIFEST.md)。
 > 这个目录永远不该出现真实用户内容——不放真实儿童录音、不放家庭照片、不放从商业 App 里扒下来的任何东西，也不提交 TTS API Key。
 
 ## 用途边界
@@ -23,7 +23,7 @@
 
 ```
 media-samples/
-├── image/animals/          # 后续阶段：自制图和 MANIFEST.md
+├── image/animals/          # 五个自制 SVG 和 MANIFEST.md
 ├── audio/animals/          # 十段 mp3、MANIFEST.md、metadata.json
 ├── tts/tts.config.yaml     # 语速、音色、风格、三项停顿
 ├── tools/                  # 可替换的生成工具，不绑定厂商 SDK
@@ -99,7 +99,7 @@ TTS_VOICE=clear-warm \
 python3 media-samples/tools/generate_animal_audio.py
 ```
 
-`metadata.json` 里同时有契约语速 `speech_rate` 和引擎自己的参数（离线引擎是 `speed_wpm`、`pitch`、`voice`）。`source_text` 只有英文。哈希以这份文件为准，供后续课程种子读取。本阶段没有服务端迁移。
+`metadata.json` 里同时有契约语速 `speech_rate` 和引擎自己的参数（离线引擎是 `speed_wpm`、`pitch`、`voice`）。`source_text` 只有英文。哈希以这份文件为准。S04 的 `V2__course_media.sql` 按这些路径和哈希写入 `media_asset`，没有重写 mp3。
 
 ## 红线
 

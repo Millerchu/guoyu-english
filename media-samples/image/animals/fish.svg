@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Original geometric illustration for animals-001. No third-party artwork. No word labels. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img">
+  <rect width="240" height="240" rx="36" fill="#E5F8F8"/>
+  <path d="M168 120 L206 86 L198 120 L206 154 Z" fill="#F18F01"/>
+  <ellipse cx="112" cy="122" rx="70" ry="40" fill="#F18F01"/>
+  <path d="M96 90 C120 70 146 86 150 102 C128 96 108 98 96 90 Z" fill="#F4B942"/>
+  <path d="M108 154 C128 170 150 160 156 146 C132 150 116 148 108 154 Z" fill="#F4B942"/>
+  <circle cx="78" cy="114" r="7" fill="#264653"/>
+  <circle cx="80" cy="112" r="2" fill="#FFFFFF"/>
+  <path d="M62 128 Q74 136 88 128" fill="none" stroke="#264653" stroke-width="3" stroke-linecap="round"/>
+  <path d="M118 108 Q128 122 118 136" fill="none" stroke="#C56A00" stroke-width="3" stroke-linecap="round"/>
+  <path d="M136 110 Q146 122 136 134" fill="none" stroke="#C56A00" stroke-width="3" stroke-linecap="round"/>
+</svg>
