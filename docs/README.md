@@ -4,7 +4,8 @@
 
 ## 现有文件
 
-- [开发计划](roadmap.md)（2026-10-29）：分阶段任务卡、可并行波次，以及动物课共享契约。这是实施切片，不是已完成的功能清单。契约以该文件的「共享契约」节为准。
+- [开发计划](roadmap.md)（2026-10-29 编写，进度表随阶段更新）：分阶段任务卡、可并行波次，以及动物课共享契约。这是实施切片，不是已完成的功能清单。契约以该文件的「共享契约」节为准。
+- [开发指南](development.md)：本机 Docker Compose 拉起数据库、服务端和 H5 入口的命令。家庭 NAS、可信 HTTPS 和录音不在这份指南里验收。
 
 2026-10-23 补充：已依据 V1.8 评审和本次用户确认生成 **V1.9 详细设计**。D01–D12 业务选择已确认；设计细节、建议参数及验收场景仍须实施验证，不表示应用已发布。原 V1.7/V1.8 保留归档。
 
@@ -41,9 +42,9 @@ V1.8 另已补充 **21.5 ChinaTextbookStudyFree 专项参考与适配**：按固
 
 ## 根 README 链接
 
-根 `README.md` 现在只指向仓库里真实存在的 V1.9 原文、修订对照、[开发计划](roadmap.md) 和本索引。原先引用的 PDF、`docs/database/` 参考 SQL、`docs/development.md` 和 `deploy/examples/` Compose 示例都还没有文件，因此不再放链接。
+根 `README.md` 指向仓库里真实存在的 V1.9 原文、修订对照、[开发计划](roadmap.md)、[开发指南](development.md) 和本索引。原先引用的 PDF、`docs/database/` 参考 SQL 和 `deploy/examples/` Compose 示例都还没有文件，因此不再放链接。
 
-`docs/development.md` 按开发计划在本地 Compose 真实可运行时再写。参考 SQL 若以后整理，也不能直接放进 Flyway 目录。
+参考 SQL 若以后整理，也不能直接放进 Flyway 目录。
 
 ## 规划文档结构
 
@@ -56,7 +57,7 @@ docs/
 ├── 设计文档/                      # 已有：V1.7–V1.9 原文，当前以 V1.9 为准
 ├── api/
 │   └── api-v1.md                  # 待补：只记录已经实现的接口
-├── development.md                 # 待补：本地命令真实存在后再写
+├── development.md                 # 已有：本机 Compose 命令，不是 NAS 验收
 ├── testing/
 │   └── test-matrix.md             # 待补：T01–T37 的实测记录，不是计划本身
 └── THIRD_PARTY_NOTICES.md         # 待补：引入依赖或素材时登记
