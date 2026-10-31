@@ -3,7 +3,7 @@
 uni-app（Vue 3 + TypeScript + Pinia）单套代码，同时输出 **Android APK** 与 **H5**。
 儿童端与家长端页面都在这一套工程里，不拆两个仓库。
 
-当前是 S02 脚手架。H5 可以安装依赖、做类型检查并构建。首页只有一层壳。学习页、IndexedDB 和真实 HTTP 都还没有。Android 应用 ID 已预留，APK 和真机都还没做。
+当前已接上 S09 的本地仓储。H5 用 IndexedDB，Android 用同一套接口上的 SQLite 适配。学习动作和 outbox、预估星星在同一个事务里写入；失败时不会显示已保存。`eventId` 由调用方创建，重试不更换。Push 体带 `schemaVersion=2` 和原来的 `eventId`，走 `/api/v1/sync/push`。学习页还没有。Android 适配没有真机或模拟器结果。
 
 ## 技术基线
 
@@ -26,7 +26,9 @@ uni-app（Vue 3 + TypeScript + Pinia）单套代码，同时输出 **Android APK
 client/
 ├── src/
 │   ├── pages/index/index.vue  # 首页壳，本阶段唯一页面
-│   ├── repositories/          # 方法签名；调用会拒绝
+│   ├── repositories/          # 仓储接口、IndexedDB、SQLite
+│   ├── sync/                  # outbox 拆批、退避、逐条 ACK
+│   ├── api/                   # /api/v1/sync 的类型和 HTTP 传输
 │   ├── styles/tokens.css      # 字号、间距、圆角、主按钮高度
 │   ├── pages.json             # 只注册首页，没有 tabBar
 │   ├── manifest.json          # 应用名「果语」，Android 应用 ID
@@ -37,7 +39,7 @@ client/
 └── tsconfig.json
 ```
 
-这些目录还没有，留给后续阶段：`src/pages/learn/`、`src/components/`、`src/stores/`、`src/repositories/h5/`、`src/repositories/android/`、`src/sync/`、`src/api/`、`src/media/`。
+这些目录还没有，留给后续阶段：`src/pages/learn/`、`src/components/`、`src/stores/`、`src/media/`。存储实现放在 `src/repositories/`，没有再拆 `h5/` 和 `android/` 子目录。
 
 ## 页面路由
 
@@ -80,12 +82,18 @@ tabBar、游戏入口仍有评审分歧，共享契约没有登记 tabBar。本�
 
 ## 端侧同步职责
 
-客户端不是权威数据源。仓储接口在 `src/repositories/`，五个方法现在都会拒绝，不会返回空列表或空课程。失败反馈的 `saved` 固定为 `false`，文案不是「已保存」。页面不要直接打开 IndexedDB，也不要直接发 HTTP。
+客户端不是权威数据源。页面通过 `src/repositories/` 的五个方法访问，不直接打开 IndexedDB，也不直接发 HTTP。数据库打不开或事务失败时，方法会拒绝；读失败不会返回空列表冒充成功。失败反馈的 `saved` 固定为 `false`，文案不是「已保存」。
 
-落地之后，客户端只做三件事：
+`saveLearningAction` 在同一事务里写进度、outbox 和跟我说的预估星星。听一听、认一认、读一句不写预估星星。跟我说同一句子只留一条 `PENDING` 预估，ACK 不删除它。`listOutbox` 只返回尚未确认的事件。`ACCEPTED` 和 `DUPLICATE` 在同一事务写入确认记录后再移出 outbox；`REJECTED` 留在本地并退出待推送队列，`eventId` 不变。`savePullPage` 先写变更，最后写游标；中途失败则整页回滚，旧游标还在。
+
+Push 请求字段是 `schemaVersion`、`streamEpoch`、`events[].eventId/eventType/stepId/targetId`。学习动作签名里没有 `childId`，这里不编造儿童编号。单批最多 100 条、256 KiB。网络失败按 5 秒、15 秒、45 秒、最长 5 分钟退避，抖动不超过该档；`429` 优先使用 `Retry-After`。`DEVICE_REVOKED` 停止同步，不把队列改记到别的身份。
+
+H5 数据库名是 `guoyu-english`。Android 请求的库路径是应用私有的 `_doc/guoyu-english.db`。`ANDROID_SQLITE_DEVICE_VERIFIED` 固定为 `false`：自动化测试用注入的 SQLite 执行同一条 SQL，没有 Android 真机、模拟器或 HBuilderX 打包结果。
+
+客户端只做三件事：
 
 1. **本地先写**：学习动作 → 同事务写本地状态 + outbox（不可拆，拆了就会丢记录）。
-2. **Push**：批量上报，单批上限 100 条 / 256KB。每条按 `eventId` 独立返回 `ACCEPTED` / `DUPLICATE` / `REJECTED`。
+2. **Push**：批量上报，单批上限 100 条 / 256 KiB。每条按 `eventId` 独立返回 `ACCEPTED` / `DUPLICATE` / `REJECTED`。
 3. **Pull**：按 `serverCursor` 增量拉取，**必须先把所有变更持久化成功，才能保存 nextCursor**。
 
 重试退避：5s → 15s → 45s → 上限 5min，带随机抖动。收到 `429` 按 `Retry-After` 走；收到 `DEVICE_REVOKED` 立即停止同步，进家长重新绑定流程，不要拿别的儿童身份重试。
@@ -109,9 +117,12 @@ cd client
 npm install
 npm run type-check
 npm run check:repository
+npm run check:storage
 npm run dev:h5
 npm run build:h5
 ```
+
+`check:storage` 覆盖事务回滚、重试不换 `eventId`、Pull 中途失败不推进游标。它使用 Node 内置的 `node:sqlite` 和 `fake-indexeddb`，不能代替浏览器或 Android 真机。
 
 `dev:h5` 启动开发服务器。`build:h5` 的页面在 `dist/build/h5/`。
 
