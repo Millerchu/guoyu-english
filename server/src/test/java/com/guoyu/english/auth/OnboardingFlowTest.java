@@ -108,7 +108,7 @@ class OnboardingFlowTest {
     void migratesV2CourseThenV3Identity() throws Exception {
         List<Map<String, Object>> versions = jdbcTemplate.queryForList(
                 "SELECT version, success FROM flyway_schema_history ORDER BY installed_rank");
-        assertThat(versions).extracting(row -> row.get("version").toString()).containsExactly("1", "2", "3");
+        assertThat(versions).extracting(row -> row.get("version").toString()).containsExactly("1", "2", "3", "4");
         assertThat(versions).allMatch(row -> Boolean.TRUE.equals(row.get("success")));
 
         List<String> tables = jdbcTemplate.queryForList(
@@ -127,12 +127,9 @@ class OnboardingFlowTest {
                 "pair_code",
                 "pair_code_child",
                 "client_device",
-                "device_child_binding");
-        assertThat(tables).doesNotContain(
-                "daily_assignment",
-                "learning_event",
-                "star_ledger",
-                "sync_change_log");
+                "device_child_binding", "learning_event", "daily_step_progress", "star_ledger",
+                "daily_checkin", "badge_award", "sync_change_log");
+        assertThat(tables).doesNotContain("daily_assignment");
 
         String timezoneDefault = jdbcTemplate.queryForObject(
                 "SELECT column_default FROM information_schema.columns "

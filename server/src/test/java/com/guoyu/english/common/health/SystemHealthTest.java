@@ -88,11 +88,12 @@ class SystemHealthTest {
                     scripts.add(history.getString("script"));
                     assertThat(history.getBoolean("success")).isTrue();
                 }
-                assertThat(versions).containsExactly("1", "2", "3");
+                assertThat(versions).containsExactly("1", "2", "3", "4");
                 assertThat(scripts).containsExactly(
                         "V1__baseline.sql",
                         "V2__course_media.sql",
-                        "V3__family_child_device.sql");
+                        "V3__family_child_device.sql",
+                        "V4__sync_ledger.sql");
             }
             try (ResultSet tables = statement.executeQuery(
                     "SELECT table_name FROM information_schema.tables "
@@ -124,12 +125,9 @@ class SystemHealthTest {
                         "pair_code",
                         "pair_code_child",
                         "client_device",
-                        "device_child_binding");
-                assertThat(names).doesNotContain(
-                        "learning_event",
-                        "star_ledger",
-                        "daily_assignment",
-                        "sync_change_log");
+                        "device_child_binding", "learning_event", "daily_step_progress", "star_ledger",
+                        "daily_checkin", "badge_award", "sync_change_log");
+                assertThat(names).doesNotContain("daily_assignment");
             }
         }
     }

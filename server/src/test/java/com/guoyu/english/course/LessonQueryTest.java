@@ -134,12 +134,8 @@ class LessonQueryTest {
             }
             assertThat(count(statement, "SELECT count(*) FROM child_profile")).isZero();
             assertThat(count(statement, "SELECT count(*) FROM client_device")).isZero();
-            try (ResultSet later = statement.executeQuery(
-                    "SELECT table_name FROM information_schema.tables "
-                            + "WHERE table_schema = 'public' AND table_name IN "
-                            + "('learning_event', 'star_ledger')")) {
-                assertThat(later.next()).isFalse();
-            }
+            assertThat(count(statement, "SELECT count(*) FROM learning_event")).isZero();
+            assertThat(count(statement, "SELECT count(*) FROM star_ledger")).isZero();
         }
     }
 

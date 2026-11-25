@@ -3,7 +3,7 @@
 uni-app（Vue 3 + TypeScript + Pinia）单套代码，同时输出 **Android APK** 与 **H5**。
 儿童端与家长端页面都在这一套工程里，不拆两个仓库。
 
-当前已接上 S09 的本地仓储。H5 用 IndexedDB，Android 用同一套接口上的 SQLite 适配。学习动作和 outbox、预估星星在同一个事务里写入；失败时不会显示已保存。`eventId` 由调用方创建，重试不更换。Push 体带 `schemaVersion=2` 和原来的 `eventId`，走 `/api/v1/sync/push`。学习页还没有。Android 适配没有真机或模拟器结果。
+当前已接上 S09 的本地仓储。H5 用 IndexedDB，Android 用同一套接口上的 SQLite 适配。学习动作和 outbox、预估星星在同一个事务里写入；失败时不会显示已保存。`eventId` 由调用方创建，重试不更换。新学习动作必须带儿童 ID、UUID eventId 和动作发生时的 UTC 时间。缺少归属或时间的旧事件留在本地，由发送队列跳过。Push 体带 `schemaVersion=2` 和原来的 `eventId`，走 `/api/v1/sync/push`。学习页还没有。Android 适配没有真机或模拟器结果。
 
 ## 技术基线
 

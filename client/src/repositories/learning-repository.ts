@@ -24,6 +24,7 @@ import {
   speakStarKey,
 } from "./record-parse";
 import type {
+  EventSettlement,
   LearningAction,
   LearningRepository,
   LearningStepId,
@@ -37,12 +38,16 @@ const PULL_PAGE_MAX_CHANGES = 500;
 const PULL_CHANGE_MAX_JSON_BYTES = 256 * 1024;
 
 interface ParsedAction {
+  readonly childId: number;
+  readonly occurredAt: string;
   readonly eventId: string;
   readonly stepId: LearningStepId;
   readonly targetId: string | null;
 }
 
 interface StoredPayload {
+  readonly childId?: number;
+  readonly occurredAt?: string;
   readonly stepId: LearningStepId;
   readonly targetId: string | null;
   readonly eventType: "STEP_FINISHED";
@@ -74,7 +79,9 @@ export function createLearningRepository(
           if (existing || journal) {
             return;
           }
-          const progressKey = progressKeyOf(parsed.stepId, parsed.targetId);
+          const day = new Date(Date.parse(parsed.occurredAt) + 8 * 3600_000).toISOString().slice(0, 10);
+          const prefix = parsed.childId + ":" + day + ":";
+          const progressKey = prefix + progressKeyOf(parsed.stepId, parsed.targetId);
           const priorProgress = await tx.get("progress", progressKey);
           if (!priorProgress) {
             await tx.put("progress", {
@@ -88,6 +95,8 @@ export function createLearningRepository(
           await tx.put("outbox", {
             eventId: parsed.eventId,
             seq,
+            childId: parsed.childId,
+            occurredAt: parsed.occurredAt,
             stepId: parsed.stepId,
             targetId: parsed.targetId,
             eventType: "STEP_FINISHED",
@@ -95,7 +104,7 @@ export function createLearningRepository(
             createdAt: now().toISOString(),
           });
           if (parsed.stepId === "step-speak" && parsed.targetId) {
-            const estimateKey = speakStarKey(parsed.targetId);
+            const estimateKey = prefix + speakStarKey(parsed.targetId);
             const priorStar = await tx.get("estimatedStar", estimateKey);
             if (!priorStar) {
               await tx.put("estimatedStar", {
@@ -122,13 +131,14 @@ export function createLearningRepository(
         throw new StorageReadError(error);
       }
       return rows
-        .filter((row) => row.status === "PENDING")
+        .filter((row): row is typeof row & { childId: number; occurredAt: string } =>
+          row.status === "PENDING" && row.childId !== undefined && row.occurredAt !== undefined)
         .sort((left, right) => left.seq - right.seq || left.eventId.localeCompare(right.eventId))
         .slice(0, parsedLimit)
         .map(toOutboxEntry);
     },
 
-    async ackOutbox(eventId: string, result: OutboxAckResult): Promise<void> {
+    async ackOutbox(eventId: string, result: OutboxAckResult, settlement?: EventSettlement): Promise<void> {
       const parsedId = parseToken(eventId, "eventId", 80);
       const parsedResult = parseAckResult(result);
       try {
@@ -147,6 +157,9 @@ export function createLearningRepository(
           await tx.put("ackJournal", {
             eventId: row.eventId,
             result: parsedResult,
+            settlementJson: settlement ? JSON.stringify(settlement) : undefined,
+            childId: row.childId,
+            occurredAt: row.occurredAt,
             stepId: row.stepId,
             targetId: row.targetId,
             eventType: row.eventType,
@@ -164,17 +177,26 @@ export function createLearningRepository(
       }
     },
 
-    async savePullPage(changes: readonly SyncChange[], nextCursor: string): Promise<void> {
+    async savePullPage(changes: readonly SyncChange[], nextCursor: string, scope?: string): Promise<void> {
       const cursor = parseCursor(nextCursor);
       const page = encodePullChanges(changes);
       try {
         await db.transaction("readwrite", async (tx) => {
+          const prior = scope ? await tx.get("pullCursor", scope) : undefined;
+          const saved = prior ? BigInt(prior.nextCursor) : BigInt(0);
+          if (scope && BigInt(cursor) <= saved && prior) return;
           let seq = await maxPullSeq(tx);
           for (const json of page) {
+            if (scope) {
+              const change: unknown = JSON.parse(json);
+              if (!isRecord(change) || typeof change.seq !== "number" || !Number.isSafeInteger(change.seq)
+                  || change.seq < 1 || BigInt(change.seq) > BigInt(cursor)) throw new InvalidArgumentError("seq");
+              if (BigInt(change.seq) <= saved) continue;
+            }
             seq += 1;
             await tx.put("pullChange", { seq, json });
           }
-          await tx.put("pullCursor", { id: LOCAL_CURSOR_ID, nextCursor: cursor });
+          await tx.put("pullCursor", { id: scope ?? LOCAL_CURSOR_ID, nextCursor: cursor });
         });
       } catch (error) {
         throw wrapPullError(error);
@@ -208,6 +230,9 @@ function parseLearningAction(action: LearningAction): ParsedAction {
     throw new InvalidLearningActionError("学习动作无效，没有保存");
   }
   const eventId = parseToken(action.eventId, "eventId", 80);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId)) {
+    throw new InvalidArgumentError("eventId");
+  }
   const stepValue = action.stepId;
   if (typeof stepValue !== "string" || !isLearningStepId(stepValue)) {
     throw new InvalidLearningActionError("步骤无效，没有保存");
@@ -216,7 +241,12 @@ function parseLearningAction(action: LearningAction): ParsedAction {
   if (stepValue === "step-speak" && targetId === null) {
     throw new InvalidLearningActionError("跟我说缺少句子，没有保存");
   }
-  return { eventId, stepId: stepValue, targetId };
+  if (!Number.isSafeInteger(action.childId) || action.childId < 1) throw new InvalidArgumentError("childId");
+  if (typeof action.occurredAt !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(action.occurredAt)
+      || !Number.isFinite(Date.parse(action.occurredAt))) throw new InvalidArgumentError("occurredAt");
+  const occurredAt = new Date(action.occurredAt).toISOString();
+  if (occurredAt.slice(0, 19) !== action.occurredAt.slice(0, 19)) throw new InvalidArgumentError("occurredAt");
+  return { eventId, childId: action.childId, occurredAt, stepId: stepValue, targetId };
 }
 
 function parseAckResult(result: OutboxAckResult): OutboxAckResult {
@@ -227,7 +257,8 @@ function parseAckResult(result: OutboxAckResult): OutboxAckResult {
 }
 
 function samePayload(record: StoredPayload, action: ParsedAction): boolean {
-  return record.eventType === "STEP_FINISHED" && record.stepId === action.stepId && record.targetId === action.targetId;
+  return record.childId === action.childId && record.occurredAt === action.occurredAt &&
+    record.eventType === "STEP_FINISHED" && record.stepId === action.stepId && record.targetId === action.targetId;
 }
 
 function compatibleAck(saved: OutboxAckResult, incoming: OutboxAckResult): boolean {
@@ -242,12 +273,16 @@ function isSuccessAck(result: OutboxAckResult): boolean {
 }
 
 function toOutboxEntry(record: {
+  childId: number;
+  occurredAt: string;
   eventId: string;
   stepId: LearningStepId;
   targetId: string | null;
 }): OutboxEntry {
   const entry: OutboxEntry = {
     eventId: record.eventId,
+    childId: record.childId,
+    occurredAt: record.occurredAt,
     eventType: "STEP_FINISHED",
     stepId: record.stepId,
   };

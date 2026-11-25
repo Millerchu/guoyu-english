@@ -148,10 +148,21 @@ export function parseProgressRecord(value: unknown): ProgressRecord {
   const targetId = readNullableToken(source, "targetId", "progress", 80);
   const eventId = readToken(source, "eventId", "progress", 80);
   const progressKey = readToken(source, "progressKey", "progress", 180);
-  if (progressKey !== progressKeyOf(stepId, targetId)) {
+  if (!matchesScopedKey(progressKey, progressKeyOf(stepId, targetId))) {
     throw new StorageCorruptError("progress");
   }
   return { progressKey, stepId, targetId, eventId };
+}
+
+function actionContext(source: Record<string, unknown>, store: string) {
+  if (source.childId == null || source.occurredAt == null) return {};
+  return { childId: readPositiveInt(source, "childId", store), occurredAt: readUtcTime(source, "occurredAt", store) };
+}
+
+function matchesScopedKey(key: string, suffix: string): boolean {
+  if (key === suffix) return true; // S09 已保存的旧索引。
+  const prefix = key.slice(0, key.length - suffix.length);
+  return key.endsWith(suffix) && /^[1-9]\d*:\d{4}-\d{2}-\d{2}:$/.test(prefix);
 }
 
 export function parseOutboxRecord(value: unknown): OutboxRecord {
@@ -164,6 +175,7 @@ export function parseOutboxRecord(value: unknown): OutboxRecord {
     throw new StorageCorruptError("outbox");
   }
   return {
+    ...actionContext(source, "outbox"),
     eventId: readToken(source, "eventId", "outbox", 80),
     seq: readPositiveInt(source, "seq", "outbox"),
     stepId: readStepId(source, "outbox"),
@@ -181,7 +193,7 @@ export function parseEstimatedStarRecord(value: unknown): EstimatedStarRecord {
   }
   const targetId = readToken(source, "targetId", "estimatedStar", 80);
   const estimateKey = readToken(source, "estimateKey", "estimatedStar", 120);
-  if (estimateKey !== speakStarKey(targetId)) {
+  if (!matchesScopedKey(estimateKey, speakStarKey(targetId))) {
     throw new StorageCorruptError("estimatedStar");
   }
   return {
@@ -216,11 +228,8 @@ export function parsePullChangeRecord(value: unknown): PullChangeRecord {
 
 export function parsePullCursorRecord(value: unknown): PullCursorRecord {
   const source = readRecord(value, "pullCursor");
-  if (source.id !== "local") {
-    throw new StorageCorruptError("pullCursor");
-  }
   return {
-    id: "local",
+    id: readToken(source, "id", "pullCursor", 200),
     nextCursor: readToken(source, "nextCursor", "pullCursor", 256),
   };
 }
@@ -264,6 +273,8 @@ export function parseAckJournalRecord(value: unknown): AckJournalRecord {
     throw new StorageCorruptError("ackJournal");
   }
   return {
+    ...actionContext(source, "ackJournal"),
+    settlementJson: typeof source.settlementJson === "string" ? source.settlementJson : undefined,
     eventId: readToken(source, "eventId", "ackJournal", 80),
     result,
     stepId: readStepId(source, "ackJournal"),

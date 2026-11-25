@@ -4,7 +4,7 @@ import { openIndexedDbDatabase } from "./indexeddb-database";
 import { createLearningRepository } from "./learning-repository";
 import type { LocalDatabase } from "./local-database";
 import { openSqliteDatabase } from "./sqlite-database";
-import type { LearningAction, LearningRepository, LessonSnapshot, OutboxAckResult, OutboxEntry, SyncChange } from "./types";
+import type { EventSettlement, LearningAction, LearningRepository, LessonSnapshot, OutboxAckResult, OutboxEntry, SyncChange } from "./types";
 
 export interface PlatformHost {
   readonly indexedDB?: IDBFactory;
@@ -81,11 +81,11 @@ function createLazyRepository(open: () => Promise<LocalDatabase>): LearningRepos
     listOutbox(limit: number): Promise<readonly OutboxEntry[]> {
       return ready().then((repository) => repository.listOutbox(limit));
     },
-    ackOutbox(eventId: string, result: OutboxAckResult): Promise<void> {
-      return ready().then((repository) => repository.ackOutbox(eventId, result));
+    ackOutbox(eventId: string, result: OutboxAckResult, settlement?: EventSettlement): Promise<void> {
+      return ready().then((repository) => repository.ackOutbox(eventId, result, settlement));
     },
-    savePullPage(changes: readonly SyncChange[], nextCursor: string): Promise<void> {
-      return ready().then((repository) => repository.savePullPage(changes, nextCursor));
+    savePullPage(changes: readonly SyncChange[], nextCursor: string, scope?: string): Promise<void> {
+      return ready().then((repository) => repository.savePullPage(changes, nextCursor, scope));
     },
     getLesson(lessonId: string, version: number): Promise<LessonSnapshot> {
       return ready().then((repository) => repository.getLesson(lessonId, version));

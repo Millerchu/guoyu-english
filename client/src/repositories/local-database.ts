@@ -22,6 +22,8 @@ export interface ProgressRecord {
 }
 
 export interface OutboxRecord {
+  readonly childId?: number;
+  readonly occurredAt?: string;
   readonly eventId: string;
   readonly seq: number;
   readonly stepId: LearningStepId;
@@ -45,7 +47,7 @@ export interface PullChangeRecord {
 }
 
 export interface PullCursorRecord {
-  readonly id: "local";
+  readonly id: string;
   readonly nextCursor: string;
 }
 
@@ -57,6 +59,9 @@ export interface LessonRecord {
 }
 
 export interface AckJournalRecord {
+  readonly settlementJson?: string;
+  readonly childId?: number;
+  readonly occurredAt?: string;
   readonly eventId: string;
   readonly result: OutboxAckResult;
   readonly stepId: LearningStepId;

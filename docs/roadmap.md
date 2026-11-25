@@ -27,7 +27,7 @@
 - 某一行改为「已合并」后，按「波次」表检查其他行。依赖都已合并的阶段改为「可开始」，其余保持「等待依赖」。
 - 状态只有这四种：已合并、进行中、可开始、等待依赖。
 
-本表核对日期：2026-10-31。S01、S02、S03、S04、S05、S06、S09 已合并。S03 的合并日期留空。S04 和 S06 都已合并，因此 S07、S08 为可开始。S05 和 S09 都已合并，因此 S10 为可开始。现在可以开始的是：S07、S08、S10、S21（等待 S03）。S11 还要等 S07、S08、S10，保持等待依赖。
+本表核对日期：2026-10-31。S01、S02、S03、S04、S05、S06、S09 已合并。S03 的合并日期留空。S04 和 S06 都已合并，S07 已领取，S08 可开始。S05 和 S09 都已合并，因此 S10 为可开始。当前可领取 S08、S10、S21（S21 的前置 S03 已合并）。S11 还要等 S07、S08、S10，保持等待依赖。
 
 | 阶段 | 一句话 | 状态 | PR | 负责助手 | 合并日期 |
 | --- | --- | --- | --- | --- | --- |
@@ -37,7 +37,7 @@
 | S04 | 动物课表、五个自制 SVG、课程种子 | 已合并 | [#6](https://github.com/Millerchu/guoyu-english/pull/6) | Cursor 云端助手 | 2026-10-31 |
 | S05 | 可替换慢速 TTS 和十段示例音频 | 已合并 | [#4](https://github.com/Millerchu/guoyu-english/pull/4) | | 2026-10-29 |
 | S06 | 空库引导、建档、配对码 | 已合并 | [#8](https://github.com/Millerchu/guoyu-english/pull/8) | Cursor Agent | 2026-10-31 |
-| S07 | 幂等同步、句子跟读星、每日贴纸 | 可开始 | | | |
+| S07 | 幂等同步、句子跟读星、每日贴纸 | 进行中 | | Codex | |
 | S08 | 当天三步任务和首页接口 | 可开始 | | | |
 | S09 | 本地状态与 outbox | 已合并 | [#9](https://github.com/Millerchu/guoyu-english/pull/9) | cursor-agent | 2026-10-31 |
 | S10 | 听、说、认、完成页 | 可开始 | | | |
@@ -243,6 +243,16 @@ TTS 配置文件固定为 `media-samples/tts/tts.config.yaml`：
 跟我说完成事件：`STEP_FINISHED`，`stepId=step-speak`，`targetId` 为 `sentenceId`。同一 `eventId` 再推返回 `DUPLICATE`，星星行数不变。同一句子用新 `eventId` 再完成，仍然只有一颗 `SPEAK_STAR`。听一听和认一认的完成事件不写 `star_ledger`。当天三个必做步骤都完成后写一张 `CHECKIN_STICKER`，再完成一次不增加第二张，也不写签到星。同一 `eventId` 换载荷返回 `EVENT_ID_REUSED`。
 
 学习日按 `Asia/Shanghai`。客户端传来的星星数不入账。
+
+#### S07 同步契约补充
+
+S09 的 Push 编码器只发送 eventId、eventType、stepId 和可选 targetId。S06 允许一个设备绑定多个儿童。为支持离线跨日和多儿童，采用以下 V1.9 字段和处理顺序：
+
+- 创建动作时保存 childId 和 occurredAt（UTC ISO-8601），与原 eventId 一同持久化。重试沿用原值。服务端逐条验证设备有效、儿童属于该家庭且已绑定，再按 occurredAt 计算上海学习日。
+- 对已提交的同一事件，核对设备、儿童和有效载荷后返回原结果。只对新事件检查过去 30×24 小时和未来 5 分钟窗口。超窗不入账。
+- 缺少归属或发生时间的历史事件保留本地供处理。禁止用当前选中的儿童、重新联网时间或服务器收件时间回填。发送其他有效事件不能被这些记录阻塞。
+- 首次同步通过已鉴权的 `GET /api/v1/sync/status`取得家庭 streamEpoch。Push 和 Pull 校验当前代次。签名及恢复重放按 P08 留给后续阶段。
+- Push 每条独立提交。听、认可在整步完成时省略 targetId；逐项上报则分别传课内 lexemeId、questionId，五项齐全才完成。跟读收齐课内五个不同句子后完成该步。每个合法句子在首次跟读时即可发星。成功 ACK 含 grantOutcomes、原提交 commitCursor 和 streamEpoch；Pull 的 reward_summary 提供确认总额和当前接收窗口内的 grantKey。分页从空游标或 0 开始，后续使用服务端返回的字符串 nextCursor。
 
 ### 客户端接口
 

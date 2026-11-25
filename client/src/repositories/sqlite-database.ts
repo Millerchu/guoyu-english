@@ -1,14 +1,13 @@
 import { InjectedWriteFaultError, StorageCorruptError, StorageUnavailableError } from "./errors";
 import { seedContractLessons } from "./lesson-catalog";
-import {
-  LOCAL_CURSOR_ID,
-  type LocalDatabase,
-  type LocalKey,
-  type LocalRecords,
-  type LocalStoreName,
-  type LocalTransaction,
-  type LocalTransactionMode,
-  type WriteFaultInjection,
+import type {
+  LocalDatabase,
+  LocalKey,
+  LocalRecords,
+  LocalStoreName,
+  LocalTransaction,
+  LocalTransactionMode,
+  WriteFaultInjection,
 } from "./local-database";
 import { parseStoreValue } from "./record-parse";
 import type { SqlExecutor, SqlRow, SqlScalar } from "./sql-executor";
@@ -69,6 +68,20 @@ export async function openSqliteDatabase(executor: SqlExecutor): Promise<LocalDa
   for (const statement of SQLITE_SCHEMA) {
     await executor.exec(statement);
   }
+  await executor.transaction(async () => {
+    for (const table of ["outbox", "ack_journal"]) {
+      const columns = await executor.query(`PRAGMA table_info(${table})`);
+      if (table === "ack_journal" && !columns.some((column) => column.name === "settlement_json")) {
+        await executor.exec("ALTER TABLE ack_journal ADD COLUMN settlement_json TEXT");
+      }
+      if (!columns.some((column) => column.name === "child_id")) {
+        await executor.exec(`ALTER TABLE ${table} ADD COLUMN child_id INTEGER`);
+      }
+      if (!columns.some((column) => column.name === "occurred_at")) {
+        await executor.exec(`ALTER TABLE ${table} ADD COLUMN occurred_at TEXT`);
+      }
+    }
+  });
   const database = new SqliteLocalDatabase(executor);
   try {
     await seedContractLessons(database);
@@ -206,7 +219,7 @@ function selectOneSql(store: LocalStoreName): string {
     case "progress":
       return "SELECT progress_key, step_id, target_id, event_id FROM progress WHERE progress_key = ?";
     case "outbox":
-      return "SELECT event_id, seq, step_id, target_id, event_type, status, created_at FROM outbox WHERE event_id = ?";
+      return "SELECT event_id, seq, step_id, target_id, event_type, status, created_at, child_id, occurred_at FROM outbox WHERE event_id = ?";
     case "estimatedStar":
       return "SELECT estimate_key, rule, target_id, event_id, state FROM estimated_star WHERE estimate_key = ?";
     case "pullChange":
@@ -216,7 +229,7 @@ function selectOneSql(store: LocalStoreName): string {
     case "lesson":
       return "SELECT lesson_key, lesson_id, version, steps_json FROM lesson WHERE lesson_key = ?";
     case "ackJournal":
-      return "SELECT event_id, result, step_id, target_id, event_type, created_at, acked_at FROM ack_journal WHERE event_id = ?";
+      return "SELECT event_id, result, step_id, target_id, event_type, created_at, acked_at, child_id, occurred_at, settlement_json FROM ack_journal WHERE event_id = ?";
     default: {
       const neverStore: never = store;
       throw new StorageCorruptError(String(neverStore));
@@ -229,7 +242,7 @@ function selectAllSql(store: LocalStoreName): string {
     case "progress":
       return "SELECT progress_key, step_id, target_id, event_id FROM progress";
     case "outbox":
-      return "SELECT event_id, seq, step_id, target_id, event_type, status, created_at FROM outbox ORDER BY seq ASC";
+      return "SELECT event_id, seq, step_id, target_id, event_type, status, created_at, child_id, occurred_at FROM outbox ORDER BY seq ASC";
     case "estimatedStar":
       return "SELECT estimate_key, rule, target_id, event_id, state FROM estimated_star";
     case "pullChange":
@@ -239,7 +252,7 @@ function selectAllSql(store: LocalStoreName): string {
     case "lesson":
       return "SELECT lesson_key, lesson_id, version, steps_json FROM lesson";
     case "ackJournal":
-      return "SELECT event_id, result, step_id, target_id, event_type, created_at, acked_at FROM ack_journal";
+      return "SELECT event_id, result, step_id, target_id, event_type, created_at, acked_at, child_id, occurred_at, settlement_json FROM ack_journal";
     default: {
       const neverStore: never = store;
       throw new StorageCorruptError(String(neverStore));
@@ -286,9 +299,9 @@ function insertSql(
       const row = parseStoreValue("outbox", value);
       return {
         sql: `INSERT OR REPLACE INTO outbox
-          (event_id, seq, step_id, target_id, event_type, status, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        params: [row.eventId, row.seq, row.stepId, row.targetId, row.eventType, row.status, row.createdAt],
+          (event_id, seq, step_id, target_id, event_type, status, created_at, child_id, occurred_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        params: [row.eventId, row.seq, row.stepId, row.targetId, row.eventType, row.status, row.createdAt, row.childId ?? null, row.occurredAt ?? null],
       };
     }
     case "estimatedStar": {
@@ -309,9 +322,6 @@ function insertSql(
     }
     case "pullCursor": {
       const row = parseStoreValue("pullCursor", value);
-      if (row.id !== LOCAL_CURSOR_ID) {
-        throw new StorageCorruptError("pullCursor");
-      }
       return {
         sql: "INSERT OR REPLACE INTO pull_cursor (id, next_cursor) VALUES (?, ?)",
         params: [row.id, row.nextCursor],
@@ -328,9 +338,9 @@ function insertSql(
       const row = parseStoreValue("ackJournal", value);
       return {
         sql: `INSERT OR REPLACE INTO ack_journal
-          (event_id, result, step_id, target_id, event_type, created_at, acked_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        params: [row.eventId, row.result, row.stepId, row.targetId, row.eventType, row.createdAt, row.ackedAt],
+          (event_id, result, step_id, target_id, event_type, created_at, acked_at, child_id, occurred_at, settlement_json)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        params: [row.eventId, row.result, row.stepId, row.targetId, row.eventType, row.createdAt, row.ackedAt, row.childId ?? null, row.occurredAt ?? null, row.settlementJson ?? null],
       };
     }
     default: {
@@ -358,6 +368,8 @@ function mapRow<K extends LocalStoreName>(store: K, row: SqlRow): LocalRecords[K
         eventType: requiredText(row, "event_type"),
         status: requiredText(row, "status"),
         createdAt: requiredText(row, "created_at"),
+        childId: row.child_id,
+        occurredAt: row.occurred_at,
       });
     case "estimatedStar":
       return parseStoreValue(store, {
@@ -392,6 +404,9 @@ function mapRow<K extends LocalStoreName>(store: K, row: SqlRow): LocalRecords[K
         targetId: nullableText(row, "target_id"),
         eventType: requiredText(row, "event_type"),
         createdAt: requiredText(row, "created_at"),
+        childId: row.child_id,
+        occurredAt: row.occurred_at,
+        settlementJson: row.settlement_json,
         ackedAt: requiredText(row, "acked_at"),
       });
     default: {

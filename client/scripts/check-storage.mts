@@ -47,6 +47,11 @@ import { splitSyncPushRequests, syncPushRequestBytes } from "../src/sync/push-ba
 import { createSyncRunner } from "../src/sync/sync-runner.ts";
 import { createNodeSqliteExecutor } from "./node-sqlite-executor.mts";
 
+const actionContext = { childId: 1, occurredAt: "2026-10-31T02:00:00.000Z" };
+function fixtureId(index: number): string {
+  return "00000000-0000-4000-8000-" + String(index).padStart(12, "0");
+}
+
 const fixedNow = (): Date => new Date("2026-10-31T00:00:00.000Z");
 
 async function rejected(work: () => Promise<unknown>): Promise<unknown> {
@@ -169,7 +174,7 @@ async function deleteIndexedDb(name: string): Promise<void> {
 }
 
 const speak = {
-  eventId: "evt-retry",
+  ...actionContext, eventId: fixtureId(1),
   stepId: "step-speak" as const,
   targetId: "sent-i-see-a-cat",
 };
@@ -194,13 +199,35 @@ for (const kind of ["indexeddb", "sqlite", "android"] as const) {
         await session.repository.saveLearningAction(speak);
         const listed = await session.repository.listOutbox(10);
         assert.equal(listed.length, 1);
-        assert.equal(listed[0]?.eventId, "evt-retry");
+        assert.equal(listed[0]?.eventId, fixtureId(1));
         assert.equal(listed[0]?.eventType, "STEP_FINISHED");
         assert.equal(listed[0]?.targetId, "sent-i-see-a-cat");
         const stars = await session.db.transaction("readonly", (tx) => tx.list("estimatedStar"));
         assert.equal(stars.length, 1);
-        assert.equal(stars[0]?.eventId, "evt-retry");
+        assert.equal(stars[0]?.eventId, fixtureId(1));
         assert.equal(stars[0]?.state, "PENDING");
+      });
+    });
+
+    test("旧队列保留且不挡新动作，儿童与上海学习日分别计进度和预估星", async () => {
+      await withKind(kind, async (session) => {
+        await session.db.transaction("readwrite", tx => tx.put("outbox", {
+          eventId: "legacy", seq: 1, eventType: "STEP_FINISHED", stepId: "step-listen",
+          targetId: null, status: "PENDING", createdAt: fixedNow().toISOString(),
+        }));
+        for (const [childId, occurredAt] of [[1, "2026-10-31T15:59:59Z"], [1, "2026-10-31T16:00:00Z"],
+          [2, "2026-10-31T16:00:00Z"]] as const) {
+          await session.repository.saveLearningAction({ ...speak, eventId: randomUUID(), childId, occurredAt });
+        }
+        await session.reopen();
+        const pending = await session.repository.listOutbox(1);
+        assert.equal(pending[0]?.childId, 1);
+        assert.equal(pending[0]?.occurredAt, "2026-10-31T15:59:59.000Z");
+        await session.db.transaction("readonly", async tx => {
+          assert.equal((await tx.list("outbox")).length, 4);
+          assert.equal((await tx.list("progress")).length, 3);
+          assert.equal((await tx.list("estimatedStar")).length, 3);
+        });
       });
     });
 
@@ -227,14 +254,14 @@ for (const kind of ["indexeddb", "sqlite", "android"] as const) {
     test("重新打开后仍是原来的 eventId", async () => {
       await withKind(kind, async (session) => {
         await session.repository.saveLearningAction({
-          eventId: "evt-keep",
+          ...actionContext, eventId: fixtureId(2),
           stepId: "step-listen",
           targetId: "lexeme-cat",
         });
         await session.reopen();
         const listed = await session.repository.listOutbox(5);
         assert.equal(listed.length, 1);
-        assert.equal(listed[0]?.eventId, "evt-keep");
+        assert.equal(listed[0]?.eventId, fixtureId(2));
         const lesson = await session.repository.getLesson("animals-001", 1);
         assert.equal(lesson.lessonId, "animals-001");
         assert.equal(lesson.version, 1);
@@ -254,54 +281,54 @@ test("相同 eventId 不改载荷，听和读不预估星星，确认不删预�
     const repository = createLearningRepository(db, {
       now: () => new Date(Date.UTC(2026, 9, 31, 0, 0, ticks++)),
     });
-    await repository.saveLearningAction({ eventId: "evt-1", stepId: "step-listen" });
+    await repository.saveLearningAction({ ...actionContext, eventId: fixtureId(3), stepId: "step-listen" });
     await assert.rejects(
-      () => repository.saveLearningAction({ eventId: "evt-1", stepId: "step-recognize" }),
+      () => repository.saveLearningAction({ ...actionContext, eventId: fixtureId(3), stepId: "step-recognize" }),
       EventIdReusedError,
     );
     const listed = await repository.listOutbox(10);
     assert.equal(listed.length, 1);
-    assert.equal(listed[0]?.eventId, "evt-1");
+    assert.equal(listed[0]?.eventId, fixtureId(3));
     assert.equal(listed[0]?.stepId, "step-listen");
     const createdAt = (await db.transaction("readonly", (tx) => tx.list("outbox")))[0]?.createdAt;
-    await repository.saveLearningAction({ eventId: "evt-1", stepId: "step-listen" });
+    await repository.saveLearningAction({ ...actionContext, eventId: fixtureId(3), stepId: "step-listen" });
     const afterRetry = await db.transaction("readonly", (tx) => tx.list("outbox"));
     assert.equal(afterRetry.length, 1);
     assert.equal(afterRetry[0]?.createdAt, createdAt);
-    assert.equal(afterRetry[0]?.eventId, "evt-1");
+    assert.equal(afterRetry[0]?.eventId, fixtureId(3));
 
-    await repository.saveLearningAction({ eventId: "evt-speak-1", stepId: "step-speak", targetId: "sent-i-see-a-cat" });
-    await repository.saveLearningAction({ eventId: "evt-speak-2", stepId: "step-speak", targetId: "sent-i-see-a-cat" });
-    await repository.saveLearningAction({ eventId: "evt-read", stepId: "step-read", targetId: "sent-i-see-a-dog" });
+    await repository.saveLearningAction({ ...actionContext, eventId: fixtureId(4), stepId: "step-speak", targetId: "sent-i-see-a-cat" });
+    await repository.saveLearningAction({ ...actionContext, eventId: fixtureId(5), stepId: "step-speak", targetId: "sent-i-see-a-cat" });
+    await repository.saveLearningAction({ ...actionContext, eventId: fixtureId(6), stepId: "step-read", targetId: "sent-i-see-a-dog" });
     const stars = await db.transaction("readonly", (tx) => tx.list("estimatedStar"));
     assert.equal(stars.length, 1);
-    assert.equal(stars[0]?.eventId, "evt-speak-1");
+    assert.equal(stars[0]?.eventId, fixtureId(4));
 
     await assert.rejects(
-      () => repository.saveLearningAction({ eventId: "evt-no-sentence", stepId: "step-speak" }),
+      () => repository.saveLearningAction({ ...actionContext, eventId: fixtureId(7), stepId: "step-speak" }),
       (error: unknown) => error instanceof Error && error.message.includes("没有保存") && !error.message.includes("已保存"),
     );
-    assert.equal((await repository.listOutbox(10)).some((entry) => entry.eventId === "evt-no-sentence"), false);
+    assert.equal((await repository.listOutbox(10)).some((entry) => entry.eventId === fixtureId(7)), false);
 
-    await repository.ackOutbox("evt-speak-1", "ACCEPTED");
+    await repository.ackOutbox(fixtureId(4), "ACCEPTED");
     const pending = (await repository.listOutbox(10)).map((entry) => entry.eventId);
-    assert.deepEqual(pending.includes("evt-speak-1"), false);
-    assert.equal(pending.includes("evt-speak-2"), true);
+    assert.deepEqual(pending.includes(fixtureId(4)), false);
+    assert.equal(pending.includes(fixtureId(5)), true);
     assert.equal((await db.transaction("readonly", (tx) => tx.list("estimatedStar"))).length, 1);
-    await repository.ackOutbox("evt-speak-1", "DUPLICATE");
-    const journal = await db.transaction("readonly", (tx) => tx.get("ackJournal", "evt-speak-1"));
-    assert.equal(journal?.eventId, "evt-speak-1");
+    await repository.ackOutbox(fixtureId(4), "DUPLICATE");
+    const journal = await db.transaction("readonly", (tx) => tx.get("ackJournal", fixtureId(4)));
+    assert.equal(journal?.eventId, fixtureId(4));
     assert.equal(journal?.result, "ACCEPTED");
 
     db.armWriteFault(2);
-    await assert.rejects(() => repository.ackOutbox("evt-speak-2", "REJECTED"));
-    assert.equal((await repository.listOutbox(10)).some((entry) => entry.eventId === "evt-speak-2"), true);
-    assert.equal(await db.transaction("readonly", (tx) => tx.get("ackJournal", "evt-speak-2")), undefined);
+    await assert.rejects(() => repository.ackOutbox(fixtureId(5), "REJECTED"));
+    assert.equal((await repository.listOutbox(10)).some((entry) => entry.eventId === fixtureId(5)), true);
+    assert.equal(await db.transaction("readonly", (tx) => tx.get("ackJournal", fixtureId(5))), undefined);
 
-    await repository.ackOutbox("evt-speak-2", "REJECTED");
-    assert.equal((await repository.listOutbox(10)).some((entry) => entry.eventId === "evt-speak-2"), false);
-    const rejected = await db.transaction("readonly", (tx) => tx.get("outbox", "evt-speak-2"));
-    assert.equal(rejected?.eventId, "evt-speak-2");
+    await repository.ackOutbox(fixtureId(5), "REJECTED");
+    assert.equal((await repository.listOutbox(10)).some((entry) => entry.eventId === fixtureId(5)), false);
+    const rejected = await db.transaction("readonly", (tx) => tx.get("outbox", fixtureId(5)));
+    assert.equal(rejected?.eventId, fixtureId(5));
     assert.equal(rejected?.status, "REJECTED");
 
     await assert.rejects(() => repository.getLesson("animals-001", 3), LessonNotFoundError);
@@ -322,7 +349,7 @@ test("相同 eventId 不改载荷，听和读不预估星星，确认不删预�
 test("关闭数据库后不能把队列读成空列表", async () => {
   const db = await openSqliteDatabase(createNodeSqliteExecutor());
   const repository = repositoryFor(db);
-  await repository.saveLearningAction({ eventId: "evt-1", stepId: "step-listen" });
+  await repository.saveLearningAction({ ...actionContext, eventId: fixtureId(3), stepId: "step-listen" });
   await db.close();
   await assert.rejects(() => repository.listOutbox(10), StorageReadError);
 });
@@ -331,8 +358,8 @@ test("Push 失败和部分 ACK 都复用原来的 eventId", async () => {
   const db = await openSqliteDatabase(createNodeSqliteExecutor());
   try {
     const repository = repositoryFor(db);
-    await repository.saveLearningAction({ eventId: "evt-a", stepId: "step-listen", targetId: "lexeme-cat" });
-    await repository.saveLearningAction({ eventId: "evt-b", stepId: "step-listen", targetId: "lexeme-dog" });
+    await repository.saveLearningAction({ ...actionContext, eventId: fixtureId(8), stepId: "step-listen", targetId: "lexeme-cat" });
+    await repository.saveLearningAction({ ...actionContext, eventId: fixtureId(9), stepId: "step-listen", targetId: "lexeme-dog" });
     const seen: string[][] = [];
     let calls = 0;
     const transport: SyncTransport = {
@@ -365,10 +392,10 @@ test("Push 失败和部分 ACK 都复用原来的 eventId", async () => {
     assert.equal(retry.message.includes("已保存"), false);
     assert.deepEqual(
       (await repository.listOutbox(10)).map((entry) => entry.eventId),
-      ["evt-a", "evt-b"],
+      [fixtureId(8), fixtureId(9)],
     );
     await runner.push("epoch-1");
-    assert.deepEqual(seen, [["evt-a", "evt-b"], ["evt-a", "evt-b"], ["evt-b"]]);
+    assert.deepEqual(seen, [[fixtureId(8), fixtureId(9)], [fixtureId(8), fixtureId(9)], [fixtureId(9)]]);
     assert.deepEqual(await repository.listOutbox(10), []);
     const stars = await db.transaction("readonly", (tx) => tx.list("estimatedStar"));
     assert.equal(stars.length, 0);
@@ -381,7 +408,7 @@ test("EVENT_ID_REUSED、设备撤销和限流都不新编 eventId", async () => 
   const db = await openSqliteDatabase(createNodeSqliteExecutor());
   try {
     const repository = repositoryFor(db);
-    await repository.saveLearningAction({ eventId: "evt-keep", stepId: "step-speak", targetId: "sent-i-see-a-dog" });
+    await repository.saveLearningAction({ ...actionContext, eventId: fixtureId(2), stepId: "step-speak", targetId: "sent-i-see-a-dog" });
     const runner = createSyncRunner(
       repository,
       {
@@ -402,12 +429,12 @@ test("EVENT_ID_REUSED、设备撤销和限流都不新编 eventId", async () => 
     );
     await runner.push("epoch-1");
     assert.deepEqual(await repository.listOutbox(10), []);
-    const kept = await db.transaction("readonly", (tx) => tx.get("outbox", "evt-keep"));
-    assert.equal(kept?.eventId, "evt-keep");
+    const kept = await db.transaction("readonly", (tx) => tx.get("outbox", fixtureId(2)));
+    assert.equal(kept?.eventId, fixtureId(2));
     assert.equal(kept?.status, "REJECTED");
     assert.equal((await db.transaction("readonly", (tx) => tx.list("estimatedStar"))).length, 1);
 
-    await repository.saveLearningAction({ eventId: "evt-revoked", stepId: "step-listen" });
+    await repository.saveLearningAction({ ...actionContext, eventId: fixtureId(10), stepId: "step-listen" });
     const revoked = createSyncRunner(repository, {
       async push() {
         throw new DeviceRevokedError();
@@ -417,7 +444,7 @@ test("EVENT_ID_REUSED、设备撤销和限流都不新编 eventId", async () => 
       },
     });
     await assert.rejects(() => revoked.push("epoch-1"), DeviceRevokedError);
-    assert.equal((await repository.listOutbox(10)).some((entry) => entry.eventId === "evt-revoked"), true);
+    assert.equal((await repository.listOutbox(10)).some((entry) => entry.eventId === fixtureId(10)), true);
 
     const limited = createSyncRunner(
       repository,
@@ -434,7 +461,7 @@ test("EVENT_ID_REUSED、设备撤销和限流都不新编 eventId", async () => 
     const retry = await rejected(() => limited.push("epoch-1"));
     assert.ok(retry instanceof SyncRetryError);
     assert.equal(retry.delayMs, 12_000);
-    assert.equal((await repository.listOutbox(10)).some((entry) => entry.eventId === "evt-revoked"), true);
+    assert.equal((await repository.listOutbox(10)).some((entry) => entry.eventId === fixtureId(10)), true);
   } finally {
     await db.close();
   }
@@ -454,7 +481,7 @@ test("Pull 第二页失败时停在上一页游标", async () => {
         if (calls === 1) {
           return {
             changes: [{ seq: 1 } as unknown as SyncChange],
-            nextCursor: "cursor-1",
+            nextCursor: "1",
             hasMore: true,
           };
         }
@@ -465,8 +492,8 @@ test("Pull 第二页失败时停在上一页游标", async () => {
       () => runner.pull({ childId: "child-1", streamEpoch: "epoch-1", cursor: "", limit: 100 }),
       SyncRetryError,
     );
-    const cursor = await db.transaction("readonly", (tx) => tx.get("pullCursor", "local"));
-    assert.equal(cursor?.nextCursor, "cursor-1");
+    const cursor = await db.transaction("readonly", (tx) => tx.get("pullCursor", "epoch-1:child-1"));
+    assert.equal(cursor?.nextCursor, "1");
     const stored = await db.transaction("readonly", (tx) => tx.list("pullChange"));
     assert.equal(stored.length, 1);
     assert.equal(stored[0]?.json.includes("seq"), true);
@@ -479,7 +506,7 @@ test("同步忙时第二次调用不会重发", async () => {
   const db = await openSqliteDatabase(createNodeSqliteExecutor());
   try {
     const repository = repositoryFor(db);
-    await repository.saveLearningAction({ eventId: "evt-1", stepId: "step-listen" });
+    await repository.saveLearningAction({ ...actionContext, eventId: fixtureId(3), stepId: "step-listen" });
     let release: (() => void) | undefined;
     const gate = new Promise<void>((resolve) => {
       release = resolve;
@@ -487,7 +514,7 @@ test("同步忙时第二次调用不会重发", async () => {
     const runner = createSyncRunner(repository, {
       async push() {
         await gate;
-        return { results: [{ eventId: "evt-1", status: "ACCEPTED" }] };
+        return { results: [{ eventId: fixtureId(3), status: "ACCEPTED" }] };
       },
       async pull() {
         throw new Error("unused");
@@ -510,7 +537,8 @@ test("HTTP Push 带 schemaVersion 和 eventId，错误信息不含令牌", async
     requests.push({ url, init });
     if (requests.length === 1) {
       return jsonResponse(200, {
-        results: [{ eventId: "evt-1", status: "ACCEPTED" }],
+        streamEpoch: "epoch-1",
+        results: [{ eventId: fixtureId(3), status: "ACCEPTED", streamEpoch: "epoch-1", commitCursor: "1", grantOutcomes: [] }],
       });
     }
     throw new Error("network down");
@@ -523,19 +551,19 @@ test("HTTP Push 带 schemaVersion 和 eventId，错误信息不含令牌", async
   const pushed = await transport.push({
     schemaVersion: 2,
     streamEpoch: "epoch-1",
-    events: [{ eventId: "evt-1", eventType: "STEP_FINISHED", stepId: "step-listen" }],
+    events: [{ ...actionContext, eventId: fixtureId(3), eventType: "STEP_FINISHED", stepId: "step-listen" }],
   });
-  assert.equal(pushed.results[0]?.eventId, "evt-1");
+  assert.equal(pushed.results[0]?.eventId, fixtureId(3));
   assert.equal(requests[0]?.url, "http://127.0.0.1:9/api/v1/sync/push");
   assert.equal(requests[0]?.init.method, "POST");
   assert.equal(requests[0]?.init.headers.Authorization, `Bearer ${token}`);
   assert.equal(requests[0]?.init.body?.includes('"schemaVersion":2'), true);
-  assert.equal(requests[0]?.init.body?.includes('"eventId":"evt-1"'), true);
+  assert.equal(JSON.parse(requests[0]!.init.body!).events[0].eventId, fixtureId(3));
   const failure = await rejected(() =>
     transport.push({
       schemaVersion: 2,
       streamEpoch: "epoch-1",
-      events: [{ eventId: "evt-1", eventType: "STEP_FINISHED", stepId: "step-listen" }],
+      events: [{ ...actionContext, eventId: fixtureId(3), eventType: "STEP_FINISHED", stepId: "step-listen" }],
     }),
   );
   assert.ok(failure instanceof NetworkError);
@@ -572,14 +600,15 @@ test("HTTP Push 带 schemaVersion 和 eventId，错误信息不含令牌", async
 
 test("拆批保持 eventId，退避不超过 5 分钟", () => {
   const entries = [0, 1, 2, 3, 4].map((index) => ({
-    eventId: `evt-${index}`,
+    ...actionContext,
+    eventId: fixtureId(index),
     eventType: "STEP_FINISHED" as const,
     stepId: "step-listen" as const,
   }));
   const batches = splitSyncPushRequests(entries, "epoch-1", { maxEvents: 2 });
   assert.deepEqual(
     batches.map((batch) => batch.events.map((event) => event.eventId)),
-    [["evt-0", "evt-1"], ["evt-2", "evt-3"], ["evt-4"]],
+    [[fixtureId(0), fixtureId(1)], [fixtureId(2), fixtureId(3)], [fixtureId(4)]],
   );
   assert.equal(batches[0]?.schemaVersion, 2);
   const one = splitSyncPushRequests([entries[0]!], "epoch-1");
@@ -589,7 +618,7 @@ test("拆批保持 eventId，退避不超过 5 分钟", () => {
   const byByte = splitSyncPushRequests(entries, "epoch-1", { maxBytes: width });
   assert.deepEqual(
     byByte.map((batch) => batch.events.map((event) => event.eventId)),
-    [["evt-0"], ["evt-1"], ["evt-2"], ["evt-3"], ["evt-4"]],
+    entries.map(entry => [entry.eventId]),
   );
   assert.throws(() => splitSyncPushRequests(entries, "epoch-1", { maxBytes: 8 }));
   assert.equal(backoffDelayMs(0, 0), 5_000);

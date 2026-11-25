@@ -15,6 +15,7 @@ class ApiCodeTest {
                 "DEVICE_REVOKED",
                 "EVENT_CONFLICT",
                 "EVENT_ID_REUSED",
+                "STREAM_EPOCH_CHANGED",
                 "INTERNAL_ERROR");
     }
 

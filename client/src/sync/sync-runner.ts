@@ -89,7 +89,7 @@ export function createSyncRunner(
               if (!allowed.has(result.eventId)) {
                 throw new SyncProtocolError("响应里的 eventId 不在本批 outbox 中");
               }
-              await repository.ackOutbox(result.eventId, ackStatus(result.status, result.code));
+              await repository.ackOutbox(result.eventId, ackStatus(result.status, result.code), result.settlement);
               acked += 1;
             }
             if (acked === 0) {
@@ -118,7 +118,7 @@ export function createSyncRunner(
           if (!response) {
             throw new SyncProtocolError("Pull 响应缺失");
           }
-          await repository.savePullPage(response.changes, response.nextCursor);
+          await repository.savePullPage(response.changes, response.nextCursor, query.streamEpoch + ":" + query.childId);
           cursor = response.nextCursor;
           if (!response.hasMore) {
             attemptIndex = 0;

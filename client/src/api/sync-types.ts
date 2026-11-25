@@ -1,4 +1,4 @@
-import type { LearningStepId, OutboxAckResult, SyncChange } from "../repositories/types";
+import type { EventSettlement, LearningStepId, OutboxAckResult, SyncChange } from "../repositories/types";
 
 /** 共享契约里的业务码。后续阶段追加前先改契约，这里不发明新码。 */
 export const API_CODES = [
@@ -7,6 +7,9 @@ export const API_CODES = [
   "DEVICE_REVOKED",
   "EVENT_CONFLICT",
   "EVENT_ID_REUSED",
+  "STREAM_EPOCH_CHANGED",
+  "EVENT_TOO_OLD",
+  "TIME_REVIEW_REQUIRED",
   "INTERNAL_ERROR",
 ] as const;
 
@@ -28,6 +31,8 @@ export const SYNC_PUSH_MAX_EVENTS = 100;
 export const SYNC_PUSH_MAX_BYTES = 256 * 1024;
 
 export interface SyncPushEvent {
+  readonly childId: number;
+  readonly occurredAt: string;
   readonly eventId: string;
   readonly eventType: "STEP_FINISHED";
   readonly stepId: LearningStepId;
@@ -44,6 +49,7 @@ export interface SyncPushEventResult {
   readonly eventId: string;
   readonly status: OutboxAckResult;
   readonly code?: ApiCode;
+  readonly settlement?: EventSettlement;
 }
 
 export interface SyncPushResponseData {

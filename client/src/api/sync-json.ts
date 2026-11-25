@@ -12,6 +12,8 @@ export function encodeSyncPushRequest(request: SyncPushRequest): string {
 function encodeEvent(event: SyncPushEvent): SyncPushEvent {
   const encoded: SyncPushEvent = {
     eventId: event.eventId,
+    childId: event.childId,
+    occurredAt: event.occurredAt,
     eventType: "STEP_FINISHED",
     stepId: event.stepId,
   };

@@ -15,6 +15,7 @@ public enum ApiCode {
     DEVICE_REVOKED(HttpStatus.UNAUTHORIZED),
     EVENT_CONFLICT(HttpStatus.CONFLICT),
     EVENT_ID_REUSED(HttpStatus.CONFLICT),
+    STREAM_EPOCH_CHANGED(HttpStatus.CONFLICT),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR);
 
     private final HttpStatus httpStatus;

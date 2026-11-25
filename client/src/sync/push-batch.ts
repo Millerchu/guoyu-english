@@ -76,6 +76,8 @@ function requestFrom(streamEpoch: string, events: readonly SyncPushEvent[]): Syn
 export function toPushEvent(entry: OutboxEntry): SyncPushEvent {
   const event: SyncPushEvent = {
     eventId: entry.eventId,
+    childId: entry.childId,
+    occurredAt: entry.occurredAt,
     eventType: "STEP_FINISHED",
     stepId: entry.stepId,
   };

@@ -2,9 +2,9 @@
 
 Java 17 + Spring Boot 3.5.16，**模块化单体**。给一个家用 NAS 装微服务是过度设计，Nacos / Redis / MQ / Seata 一律不引入。
 
-S01 已落地可编译的骨架：Maven Wrapper、统一响应、`GET /api/v1/system/health`、Flyway `V1__baseline.sql`。V1 只执行 `SELECT 1`，不建业务表。S04 在 `V2__course_media.sql` 写入课程、词条、媒体和认一认题目，并提供 `GET /api/v1/lessons/{lessonId}?version=`。S06 增加身份：`auth`、`child` 和 Flyway `V3__family_child_device.sql`。同步包还没有，也没有七天任务。集成测试用 Docker 里的 `postgres:16`。家庭 NAS 尚未验收。
+S01 已落地可编译的骨架：Maven Wrapper、统一响应、`GET /api/v1/system/health`、Flyway `V1__baseline.sql`。V1 只执行 `SELECT 1`，不建业务表。S04 在 `V2__course_media.sql` 写入课程、词条、媒体和认一认题目，并提供 `GET /api/v1/lessons/{lessonId}?version=`。S06 增加身份：`auth`、`child` 和 Flyway `V3__family_child_device.sql`。S07 的 V4 新增事件、每日进度、跟读星、贴纸与 Pull 日志。集成测试用 Docker 里的 `postgres:16`。家庭 NAS 尚未验收。
 
-下面的模块划分里，还没有控制器的目录仍是后续阶段的目标。健康检查、动物课查询和身份接口已经实现。
+下面的模块划分里，还没有控制器的目录仍是后续阶段的目标。健康检查、动物课查询、身份和同步接口已经实现。
 
 ## 技术基线
 

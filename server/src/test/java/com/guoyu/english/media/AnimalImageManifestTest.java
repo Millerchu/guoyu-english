@@ -59,7 +59,8 @@ class AnimalImageManifestTest {
                     .containsExactlyInAnyOrder(
                             "V1__baseline.sql",
                             "V2__course_media.sql",
-                            "V3__family_child_device.sql");
+                            "V3__family_child_device.sql",
+                            "V4__sync_ledger.sql");
         }
     }
 

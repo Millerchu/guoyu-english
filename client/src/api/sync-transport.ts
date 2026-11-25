@@ -11,7 +11,7 @@ import {
 import { encodeSyncPushRequest } from "./sync-json";
 import { InvalidArgumentError } from "../repositories/errors";
 import { parseToken } from "../repositories/record-parse";
-import type { SyncChange } from "../repositories/types";
+import type { EventSettlement, SyncChange } from "../repositories/types";
 
 export interface FetchInit {
   readonly method: string;
@@ -46,10 +46,18 @@ export interface SyncHttpTransportOptions {
 
 const RESPONSE_TEXT_MAX = 1024 * 1024;
 
-export function createSyncHttpTransport(options: SyncHttpTransportOptions = {}): SyncTransport {
+export function createSyncHttpTransport(options: SyncHttpTransportOptions = {}): SyncTransport & { status(): Promise<string> } {
   const fetchImpl = options.fetchImpl ?? defaultFetch;
   const baseUrl = options.baseUrl ?? "";
   return {
+    async status(): Promise<string> {
+      const response = await send(fetchImpl, joinUrl(baseUrl, "/api/v1/sync/status"), {
+        method: "GET", headers: headers(options.deviceToken),
+      });
+      const data = await readData(response);
+      if (!isRecord(data)) throw new SyncRejectedError("BAD_RESPONSE");
+      return parseToken(data.streamEpoch, "streamEpoch", 80);
+    },
     push(request: SyncPushRequest): Promise<SyncPushResponseData> {
       return postPush(fetchImpl, baseUrl, options.deviceToken, request);
     },
@@ -87,7 +95,8 @@ async function postPush(
     body,
   });
   const data = await readData(response);
-  return parsePushData(data);
+  requireMatchingEpoch(data, request.streamEpoch);
+  return parsePushData(data, request.streamEpoch);
 }
 
 async function getPull(
@@ -108,7 +117,14 @@ async function getPull(
     headers: headers(deviceToken),
   });
   const data = await readData(response);
+  requireMatchingEpoch(data, query.streamEpoch);
   return parsePullData(data);
+}
+
+function requireMatchingEpoch(data: unknown, expected: string): void {
+  if (!isRecord(data) || data.streamEpoch !== expected) {
+    throw new SyncRejectedError("STREAM_EPOCH_CHANGED");
+  }
 }
 
 function headers(deviceToken: string | undefined): Record<string, string> {
@@ -155,7 +171,7 @@ async function readData(response: FetchResponse): Promise<unknown> {
     throw new DeviceRevokedError();
   }
   if (!response.ok || envelope.code !== "OK") {
-    if (envelope.code === "INVALID_ARGUMENT" || envelope.code === "EVENT_CONFLICT" || envelope.code === "EVENT_ID_REUSED") {
+    if (envelope.code === "INVALID_ARGUMENT" || envelope.code === "EVENT_CONFLICT" || envelope.code === "EVENT_ID_REUSED" || envelope.code === "STREAM_EPOCH_CHANGED") {
       throw new SyncRejectedError(envelope.code);
     }
     throw new ApiResponseError(response.status, envelope.code, envelope.requestId);
@@ -204,18 +220,18 @@ function parseEnvelope(payload: unknown, status: number): { requestId: string; c
   return { requestId, code, data: payload.data };
 }
 
-function parsePushData(data: unknown): SyncPushResponseData {
+function parsePushData(data: unknown, epoch: string): SyncPushResponseData {
   if (!isRecord(data) || !Array.isArray(data.results)) {
     throw new SyncRejectedError("BAD_RESPONSE");
   }
   const results: SyncPushEventResult[] = [];
   for (const item of data.results) {
-    results.push(parsePushResult(item));
+    results.push(parsePushResult(item, epoch));
   }
   return { results };
 }
 
-function parsePushResult(item: unknown): SyncPushEventResult {
+function parsePushResult(item: unknown, epoch: string): SyncPushEventResult {
   if (!isRecord(item) || typeof item.eventId !== "string") {
     throw new SyncRejectedError("BAD_RESPONSE");
   }
@@ -225,6 +241,7 @@ function parsePushResult(item: unknown): SyncPushEventResult {
   const result: SyncPushEventResult = {
     eventId: item.eventId,
     status: item.status,
+    settlement: item.status === "REJECTED" ? undefined : parseSettlement(item, epoch),
   };
   if (item.code === undefined) {
     return result;
@@ -233,6 +250,18 @@ function parsePushResult(item: unknown): SyncPushEventResult {
     throw new SyncRejectedError("BAD_RESPONSE");
   }
   return { ...result, code: item.code };
+}
+
+function parseSettlement(item: Record<string, unknown>, epoch: string): EventSettlement {
+  if (item.streamEpoch !== epoch || typeof item.commitCursor !== "string" || !/^\d+$/.test(item.commitCursor)
+      || !Array.isArray(item.grantOutcomes)) throw new SyncRejectedError("BAD_RESPONSE");
+  const grantOutcomes = item.grantOutcomes.map((grant: unknown) => {
+    if (!isRecord(grant) || typeof grant.grantKey !== "string" || grant.status !== "CONFIRMED" || grant.delta !== 1) {
+      throw new SyncRejectedError("BAD_RESPONSE");
+    }
+    return { grantKey: grant.grantKey, status: grant.status as "CONFIRMED", delta: grant.delta };
+  });
+  return { streamEpoch: epoch, commitCursor: item.commitCursor, grantOutcomes };
 }
 
 function parsePullData(data: unknown): SyncPullResponseData {

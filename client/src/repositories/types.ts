@@ -10,18 +10,28 @@ export type LearningStepId =
   | "step-read";
 
 export interface LearningAction {
+  readonly childId: number;
+  readonly occurredAt: string;
   readonly eventId: string;
   readonly stepId: LearningStepId;
   readonly targetId?: string;
+}
+
+export interface EventSettlement {
+  readonly streamEpoch: string;
+  readonly commitCursor: string;
+  readonly grantOutcomes: readonly { readonly grantKey: string; readonly status: "CONFIRMED"; readonly delta: number }[];
 }
 
 export type OutboxAckResult = "ACCEPTED" | "DUPLICATE" | "REJECTED";
 
 /**
  * 待推送事件。eventId 由调用方在创建时给出，仓储和重试都不更换。
- * 字段只使用共享契约已经点名的标识，不另造 childId。
+ * 保留动作发生时的儿童与 UTC 时间。
  */
 export interface OutboxEntry {
+  readonly childId: number;
+  readonly occurredAt: string;
   readonly eventId: string;
   readonly eventType: "STEP_FINISHED";
   readonly stepId: LearningStepId;
@@ -48,7 +58,7 @@ export interface LessonSnapshot {
 export interface LearningRepository {
   saveLearningAction(action: LearningAction): Promise<void>;
   listOutbox(limit: number): Promise<readonly OutboxEntry[]>;
-  ackOutbox(eventId: string, result: OutboxAckResult): Promise<void>;
-  savePullPage(changes: readonly SyncChange[], nextCursor: string): Promise<void>;
+  ackOutbox(eventId: string, result: OutboxAckResult, settlement?: EventSettlement): Promise<void>;
+  savePullPage(changes: readonly SyncChange[], nextCursor: string, scope?: string): Promise<void>;
   getLesson(lessonId: string, version: number): Promise<LessonSnapshot>;
 }

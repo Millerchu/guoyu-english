@@ -13,7 +13,7 @@ const tokensUrl = new URL("../src/styles/tokens.css", import.meta.url);
 test("unimplemented save rejects and is not presented as saved", async () => {
   const repository = createUnimplementedLearningRepository();
   await assert.rejects(
-    () => repository.saveLearningAction({ eventId: "evt-1", stepId: "step-listen" }),
+    () => repository.saveLearningAction({ childId: 1, occurredAt: "2026-10-31T02:00:00.000Z", eventId: "evt-1", stepId: "step-listen" }),
     (error: unknown) => {
       assert.ok(error instanceof RepositoryNotImplementedError);
       assert.equal(error.saved, false);
